@@ -1,0 +1,69 @@
+/* Dizayn tokenləri — köhnə panelin (docs/legacy/sr_dashboard_template.html) :root blokundan */
+:root {
+  color-scheme: light;
+  --plane: #f2f4f7; --surface: #ffffff; --surface-2: #f6f8fb; --sunk: #eef1f5;
+  --ink: #111723; --ink-2: #465063; --muted: #768092; --hair: #e0e5ec; --hair-2: #edf0f4;
+  --accent: #2a78d6; --accent-ink: #1c5cab; --accent-wash: rgba(42,120,214,.09); --accent-wash-2: rgba(42,120,214,.17);
+  --bar: #2a78d6; --bar-track: #e8eef7; --area: rgba(42,120,214,.10); --frame: rgba(42,120,214,.45);
+  --strip: #0a0d12; --strip-ink: #eef1f6; --strip-muted: #8e97a7; --strip-hover: rgba(255,255,255,.08);
+  --up: #0b6b16; --down: #b3261e;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --shadow: 0 1px 2px rgba(17,23,35,.05), 0 1px 3px rgba(17,23,35,.06);
+  --shadow-lg: 0 12px 32px rgba(17,23,35,.16), 0 2px 6px rgba(17,23,35,.08);
+  --r: 10px; --r-sm: 7px;
+  --sans: var(--font-plex), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cond: var(--font-plex-cond), var(--font-plex), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #0b0e13; --surface: #141920; --surface-2: #1a2029; --sunk: #10141a;
+    --ink: #eef2f7; --ink-2: #b6bfcc; --muted: #8a94a5; --hair: #262e3a; --hair-2: #1d242e;
+    --accent: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57,135,229,.14); --accent-wash-2: rgba(57,135,229,.26);
+    --bar: #3987e5; --bar-track: #1f2a3a; --area: rgba(57,135,229,.16); --frame: rgba(57,135,229,.45);
+    --strip: #06080b; --up: #34b04a; --down: #ef6b6b;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --shadow: 0 1px 2px rgba(0,0,0,.4); --shadow-lg: 0 14px 36px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #0b0e13; --surface: #141920; --surface-2: #1a2029; --sunk: #10141a;
+  --ink: #eef2f7; --ink-2: #b6bfcc; --muted: #8a94a5; --hair: #262e3a; --hair-2: #1d242e;
+  --accent: #3987e5; --accent-ink: #86b6ef; --accent-wash: rgba(57,135,229,.14); --accent-wash-2: rgba(57,135,229,.26);
+  --bar: #3987e5; --bar-track: #1f2a3a; --area: rgba(57,135,229,.16); --frame: rgba(57,135,229,.45);
+  --strip: #06080b; --up: #34b04a; --down: #ef6b6b;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --shadow: 0 1px 2px rgba(0,0,0,.4); --shadow-lg: 0 14px 36px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--plane); color: var(--ink); font-family: var(--sans);
+  font-size: 14px; line-height: 1.4; -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1480px; margin: 0 auto; padding-inline: 16px; }
+@media (min-width: 900px) { .wrap { padding-inline: 24px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ümumi elementlər */
+.btn { border: 1px solid var(--hair); background: var(--surface); border-radius: 6px; padding: 7px 14px; cursor: pointer; font-weight: 600; }
+.btn:hover { filter: brightness(1.05); }
+.btn[disabled] { opacity: .55; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--down); }
+.link { background: none; border: 0; color: var(--accent-ink); font-weight: 600; cursor: pointer; padding: 6px 8px; border-radius: 6px; }
+.link:hover { background: var(--accent-wash); }
+.field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
+.field input, .field select {
+  font-size: 14px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--hair);
+  border-radius: var(--r-sm); padding: 9px 11px; min-width: 0;
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.alert { border-radius: var(--r-sm); padding: 9px 12px; font-size: 13px; }
+.alert.error { background: rgba(179,38,30,.10); color: var(--ink); }
+.alert.ok { background: rgba(11,107,22,.10); color: var(--ink); }
+.alert.info { background: var(--accent-wash); color: var(--ink); }
