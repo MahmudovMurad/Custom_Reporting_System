@@ -6,8 +6,11 @@ export type Conn = { db: DB; close: () => Promise<void>; kind: "postgres" | "pgl
 
 // DATABASE_URL varsa (Vercel/Neon) postgres-js, yoxdursa lokal PGlite (.data/pglite) — lokal inkişaf DB quraşdırmadan işləyir.
 // PGlite rejimində miqrasiyalar avtomatik tətbiq olunur; Postgres-də `npm run db:migrate` ilə.
+// Vercel-in Neon inteqrasiyası prefiksli ad da yarada bilir (layihədə "neon_" prefiksi ilə qoşulub)
+export const databaseUrl = () => process.env.DATABASE_URL || process.env.neon_DATABASE_URL || "";
+
 export async function connect(): Promise<Conn> {
-  const url = process.env.DATABASE_URL;
+  const url = databaseUrl();
   if (url) {
     const { default: postgres } = await import("postgres");
     const { drizzle } = await import("drizzle-orm/postgres-js");

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.mts",
-    "user:create": "tsx scripts/create-user.mts"
+    "user:create": "tsx scripts/create-user.mts",
+    "user:create:prod": "tsx scripts/create-user-prod.mts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
