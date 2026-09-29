@@ -7,7 +7,7 @@ import Modal from "./modal";
 import s from "./ui.module.css";
 
 const STATUS: Record<string, string> = { ok: "Yeniləndi", unchanged: "Dəyişiklik yox", error: "Xəta", running: "Gedir…", skipped: "Ötürüldü" };
-const TRIGGER: Record<string, string> = { cron: "Avto", manual: "Əl ilə", cli: "Terminal" };
+const TRIGGER: Record<string, string> = { auto: "Avto (15 dəq)", sheet: "Sheet menyusu", manual: "Paneldə Yenilə", cli: "Terminal" };
 const when = (iso: string) => { const d = new Date(iso), p = (n: number) => String(n).padStart(2, "0"); return `${d.getDate()} ${MON3[d.getMonth()]} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const n = (v: number | null) => (v == null ? "—" : v.toLocaleString("en-US"));
 

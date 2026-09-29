@@ -12,7 +12,7 @@ export default function SyncButton() {
   const [msg, setMsg] = useState<{ kind: "ok" | "error" | "info"; text: string } | null>(null);
 
   const run = () => start(async () => {
-    setMsg({ kind: "info", text: "Google Sheet oxunur… (10–40 saniyə)" });
+    setMsg({ kind: "info", text: "Google Sheet oxunur… (30–90 saniyə)" });
     const r = await triggerSync();
     setMsg({ kind: r.status === "error" ? "error" : r.status === "ok" ? "ok" : "info", text: r.message });
     if (r.status === "ok") router.refresh();

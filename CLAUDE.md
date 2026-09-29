@@ -11,6 +11,13 @@ Tam layihə xülasəsi (məqsəd, qərarlar, data qaydaları, funksional spesifi
 - Drizzle ORM. `DATABASE_URL` varsa postgres-js (Neon), yoxdursa lokal PGlite (`.data/pglite`, avtomatik miqrasiya) — [src/db/index.ts](src/db/index.ts).
 - Parollar: `@node-rs/argon2` (argon2id). Session: DB-də (`sessions`, token-in sha256-sı), cookie `sr_session` (httpOnly, 14 gün).
 
+## Data körpüsü (2-ci mərhələ)
+- Şirkətin Google təşkilatında servis hesabı açarı yaratmaq qadağandır (`iam.disableServiceAccountKeyCreation`) — server Sheet-i özü oxumur.
+- Sheet-in öz Apps Script-i ([apps-script/Code.gs](apps-script/Code.gs)) hər 15 dəq Main Data + Real Stock-u `getDisplayValues()` ilə oxuyur → `/api/ingest`-ə göndərir (`Authorization: Bearer SYNC_SECRET`). Əvvəl kiçik `check` (hash) sorğusu; dəyişiklik varsa data 60k sətirlik gzip hissələrlə (Vercel 4.5 MB limiti).
+- Paneldə admin "Yenilə" → server action Apps Script web app-ını (`APPS_SCRIPT_URL`) çağırır.
+- ETL: [src/lib/etl/](src/lib/etl/) (template + build.py qaydaları), sync: [src/lib/sync.ts](src/lib/sync.ts). Lokal sync CSV-dən: `npm run sync -- --main X.csv --stock Y.csv` (defolt `.data/import/`), sonra `npm run verify` (handoff §6).
+- Lokal gizli fayllar `.secrets/`-dədir (gitignore): `sync-secret.txt` = Vercel-dəki `SYNC_SECRET`.
+
 ## Əmrlər
 - `npm run dev` — lokal server (PGlite ilə DB quraşdırmadan işləyir)
 - `npm run db:generate` — `src/db/schema.ts` dəyişəndə miqrasiya SQL-i yarat (`drizzle/`)

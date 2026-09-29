@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, date, doublePrecision, index, integer, jsonb, pgTable, serial, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, serial, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const ROLES = ["admin", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
@@ -61,7 +61,7 @@ export const syncRuns = pgTable(
   "sync_runs",
   {
     id: serial("id").primaryKey(),
-    trigger: text("trigger").notNull(),                 // cron | manual | cli
+    trigger: text("trigger").notNull(),                 // auto (15 dəq taymer) | sheet (Sheet menyusu) | manual (paneldə Yenilə) | cli
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     status: text("status").$type<SyncStatus>().notNull().default("running"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
@@ -75,6 +75,7 @@ export const syncRuns = pgTable(
     dataStart: date("data_start"),
     dataEnd: date("data_end"),
     dataHash: text("data_hash"),
+    sourceHash: text("source_hash"),                     // Apps Script-in göndərdiyi xam Sheet datasının hash-i
     warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
     error: text("error"),
   },
@@ -142,6 +143,19 @@ export const datasets = pgTable("datasets", {
   hash: text("hash").notNull(),
   payload: text("payload").notNull(),                   // JSON
 });
+
+// Apps Script böyük datanı hissələrlə göndərir (Vercel sorğu limiti 4.5 MB) — hissələr hamısı gələnə qədər burada saxlanılır
+export const ingestParts = pgTable(
+  "ingest_parts",
+  {
+    uploadId: text("upload_id").notNull(),
+    part: integer("part").notNull(),
+    total: integer("total").notNull(),
+    data: text("data").notNull(),                       // gzip + base64
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.uploadId, t.part] })],
+);
 
 // Eyni anda iki sync işləməsin deyə sadə kilid (Neon pooler-də advisory lock etibarlı deyil)
 export const locks = pgTable("locks", {

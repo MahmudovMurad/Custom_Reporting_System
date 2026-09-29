@@ -1,16 +1,15 @@
-// Google Sheet → DB sync (handoff §7.2). Həm API (cron / "Yenilə"), həm CLI (scripts/sync.mts) bunu çağırır.
+// Google Sheet → DB sync (handoff §7.2). Data Sheet-in öz Apps Script-i ilə gəlir (apps-script/Code.gs → /api/ingest);
+// şirkətin Google təşkilatında servis hesabı açarı yaratmaq qadağandır. CLI (scripts/sync.mts) CSV fayllarından oxuyur.
 import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type { DB } from "@/db/connect";
 import * as schema from "@/db/schema";
 import { buildMainData, DIM_KEYS } from "./etl/crm";
-import { isoDay, norm } from "./etl/normalize";
+import { isoDay } from "./etl/normalize";
 import { buildPayload, hashes } from "./etl/payload";
 import { parseRealStock, type StockRow } from "./etl/stock";
-import { readSheet, sheetList } from "./google";
 
-export const SHEET_ID = process.env.SHEET_ID || "1epakBxb8J4NxdN7yFrq_6VeNPynD9m6j-gEPfrFugP8";
-const MAIN_GID = 0, STOCK_GID = 1048230805;
 const LOCK_MIN = 5;
+export type Trigger = "auto" | "sheet" | "manual" | "cli";
 
 export type SyncResult = {
   status: schema.SyncStatus;
@@ -33,19 +32,26 @@ async function insertChunks<T extends Record<string, unknown>>(tx: DB, table: Pa
   for (let i = 0; i < rows.length; i += size) await tx.insert(table).values(rows.slice(i, i + size) as never);
 }
 
-type Source = () => Promise<{ main: string[][]; stock: string[][] | null; warnings: string[] }>;
+export type Source = () => Promise<{ main: string[][]; stock: string[][] | null; warnings: string[] }>;
+type Opts = { trigger: Trigger; userId?: string | null; minIntervalSec?: number; source: Source; sourceHash?: string };
 
-// Default mənbə: Google Sheet (vərəqlər gid ilə tapılır — ad dəyişsə də işləyir; ehtiyat: ad ilə)
-const googleSource: Source = async () => {
-  const sheets = await sheetList(SHEET_ID);
-  const find = (gid: number, name: string) => sheets.find((s) => s.sheetId === gid) || sheets.find((s) => norm(s.title) === name);
-  const mainSheet = find(MAIN_GID, "main data"), stockSheet = find(STOCK_GID, "real stock");
-  if (!mainSheet) throw new Error(`"Main Data" vərəqi tapılmadı. Vərəqlər: ${sheets.map((s) => s.title).join(", ")}`);
-  const [main, stock] = await Promise.all([readSheet(SHEET_ID, mainSheet), stockSheet ? readSheet(SHEET_ID, stockSheet) : Promise.resolve(null)]);
-  return { main, stock, warnings: stockSheet ? [] : [`"Real Stock" vərəqi tapılmadı — stok yenilənmədi`] };
-};
+const lastGoodRun = (db: DB) => db.select().from(schema.syncRuns)
+  .where(inArray(schema.syncRuns.status, ["ok", "unchanged"])).orderBy(desc(schema.syncRuns.id)).limit(1).then((r) => r[0]);
 
-export async function runSync(db: DB, opts: { trigger: "cron" | "manual" | "cli"; userId?: string; minIntervalSec?: number; source?: Source }): Promise<SyncResult> {
+/** Apps Script-in ilk (kiçik) sorğusu: Sheet-in hash-i son uğurlu sync ilə eynidirsə "unchanged" loqlanır, data göndərilmir. */
+export async function checkSource(db: DB, opts: { trigger: Trigger; userId?: string | null; sourceHash: string }): Promise<SyncResult | null> {
+  const last = await lastGoodRun(db);
+  if (!last || last.sourceHash !== opts.sourceHash) return null;
+  const now = new Date();
+  const [run] = await db.insert(schema.syncRuns).values({
+    trigger: opts.trigger, userId: opts.userId, status: "unchanged", startedAt: now, finishedAt: now, durationMs: 0,
+    crmRecords: last.crmRecords, crmSkipped: last.crmSkipped, crmRows: last.crmRows, marketRecords: last.marketRecords, stockRows: last.stockRows,
+    dataStart: last.dataStart, dataEnd: last.dataEnd, dataHash: last.dataHash, sourceHash: opts.sourceHash,
+  }).returning({ id: schema.syncRuns.id });
+  return { status: "unchanged", runId: run.id, message: "Sheet-də dəyişiklik yoxdur.", durationMs: 0 };
+}
+
+export async function runSync(db: DB, opts: Opts): Promise<SyncResult> {
   if (!(await acquireLock(db))) return { status: "skipped", message: "Başqa sync artıq gedir." };
   const t0 = Date.now();
   let runId: number | undefined;
@@ -57,10 +63,11 @@ export async function runSync(db: DB, opts: { trigger: "cron" | "manual" | "cli"
         return { status: "skipped", message: `Son sync ${Math.round((Date.now() - last.at.getTime()) / 1000)} saniyə əvvəl olub.` };
       }
     }
-    [{ id: runId }] = await db.insert(schema.syncRuns).values({ trigger: opts.trigger, userId: opts.userId }).returning({ id: schema.syncRuns.id });
+    [{ id: runId }] = await db.insert(schema.syncRuns).values({ trigger: opts.trigger, userId: opts.userId, sourceHash: opts.sourceHash })
+      .returning({ id: schema.syncRuns.id });
 
-    // 1. Sheet-i oxu
-    const src = await (opts.source ?? googleSource)();
+    // 1. Sheet datası
+    const src = await opts.source();
     const mainValues = src.main, stockValues = src.stock;
     const warnings = [...src.warnings];
 
