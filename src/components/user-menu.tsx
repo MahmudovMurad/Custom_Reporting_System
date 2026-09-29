@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { logout } from "@/app/actions/auth";
 import type { Role } from "@/db/schema";
 import PasswordDialog from "./password-dialog";
+import SyncLogDialog from "./sync-log-dialog";
 import UsersDialog from "./users-dialog";
 import s from "./ui.module.css";
 
 type Props = { user: { name: string; email: string; role: Role } };
+type Dialog = "users" | "password" | "synclog";
 
 export default function UserMenu({ user }: Props) {
   const [open, setOpen] = useState(false);
-  const [dialog, setDialog] = useState<"users" | "password" | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function UserMenu({ user }: Props) {
     return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const pick = (d: "users" | "password") => { setOpen(false); setDialog(d); };
+  const pick = (d: Dialog) => { setOpen(false); setDialog(d); };
 
   return (
     <div className={s.menuWrap} ref={ref}>
@@ -39,9 +41,10 @@ export default function UserMenu({ user }: Props) {
             <span>{user.email}</span>
             <span className={s.roleTag}>{user.role === "admin" ? "Admin" : "İzləyici"}</span>
           </div>
-          {user.role === "admin" && (
+          {user.role === "admin" && (<>
             <button type="button" role="menuitem" className={s.menuItem} onClick={() => pick("users")}>İstifadəçilər</button>
-          )}
+            <button type="button" role="menuitem" className={s.menuItem} onClick={() => pick("synclog")}>Sync loqu</button>
+          </>)}
           <button type="button" role="menuitem" className={s.menuItem} onClick={() => pick("password")}>Şifrəni dəyiş</button>
           <form action={logout}>
             <button type="submit" role="menuitem" className={s.menuItem}>Çıxış</button>
@@ -50,6 +53,7 @@ export default function UserMenu({ user }: Props) {
       )}
       {dialog === "users" && <UsersDialog onClose={() => setDialog(null)} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
+      {dialog === "synclog" && <SyncLogDialog onClose={() => setDialog(null)} />}
     </div>
   );
 }

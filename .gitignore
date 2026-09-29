@@ -46,3 +46,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Google servis hesab? a?ar? v? dig?r lokal gizli fayllar
+/.secrets/

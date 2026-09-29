@@ -3,18 +3,13 @@
 import { useCallback, useEffect, useState, useTransition, type FormEvent } from "react";
 import { createUser, deleteUser, listUsers, resetPassword, setRole, type Result, type UserRow } from "@/app/actions/users";
 import type { Role } from "@/db/schema";
+import { dateTimeShort } from "@/lib/format";
 import { PASSWORD_MIN } from "@/lib/password-rules";
 import Modal from "./modal";
 import s from "./ui.module.css";
 
 const ROLE_TXT: Record<Role, string> = { admin: "Admin", viewer: "İzləyici" };
-// Brauzerlərin "az" lokal datası natamamdır ("2026 M09 28") — ay adları köhnə paneldəki kimi əl ilə
-const MON3 = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avq", "sen", "okt", "noy", "dek"];
-const when = (iso: string | null) => {
-  if (!iso) return "—";
-  const d = new Date(iso), p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getDate()} ${MON3[d.getMonth()]} ${d.getFullYear()}, ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
+const when = (iso: string | null) => (iso ? dateTimeShort(new Date(iso)) : "—");
 
 type Notice = { kind: "ok" | "error"; text: string; password?: string };
 

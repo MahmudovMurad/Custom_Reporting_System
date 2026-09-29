@@ -21,6 +21,24 @@
 .menuItem { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 13.5px; }
 .menuItem:hover { background: var(--sunk); }
 
+/* Yenilə düyməsi */
+.syncWrap { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: flex-end; }
+.syncBtn { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; }
+.spin svg { animation: sp 1s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+.syncMsg { padding: 6px 10px; font-size: 12.5px; }
+
+/* sync loqu */
+.clickable { cursor: pointer; }
+.clickable:hover { background: var(--sunk); }
+.badge { font-size: 11.5px; font-weight: 600; border-radius: 4px; padding: 2px 7px; background: var(--sunk); color: var(--ink-2); }
+.st_ok { background: rgba(11,107,22,.12); color: var(--up); }
+.st_error { background: rgba(179,38,30,.12); color: var(--down); }
+.st_running { background: var(--accent-wash); color: var(--accent-ink); }
+.warnCount { color: #8a5a00; font-size: 12px; font-weight: 600; }
+.detail { background: var(--surface-2); font-size: 12.5px; }
+.detail ul { margin: 4px 0; padding-left: 18px; }
+
 /* modal */
 .modal {
   width: 440px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); padding: 0;
