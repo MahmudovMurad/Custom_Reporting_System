@@ -18,6 +18,11 @@ Tam layihə xülasəsi (məqsəd, qərarlar, data qaydaları, funksional spesifi
 - ETL: [src/lib/etl/](src/lib/etl/) (template + build.py qaydaları), sync: [src/lib/sync.ts](src/lib/sync.ts). Lokal sync CSV-dən: `npm run sync -- --main X.csv --stock Y.csv` (defolt `.data/import/`), sonra `npm run verify` (handoff §6).
 - Lokal gizli fayllar `.secrets/`-dədir (gitignore): `sync-secret.txt` = Vercel-dəki `SYNC_SECRET`.
 
+## Analytics səhifəsi (3-cü mərhələ)
+- Köhnə panelin JS-i birə-bir [src/components/dashboard/engine.js](src/components/dashboard/engine.js)-dədir (hesablama/UI kodu dəyişmədən; yalnız data mənbəyi `/api/data`). CSS: [src/app/dashboard.css](src/app/dashboard.css), HTML: [markup.ts](src/components/dashboard/markup.ts). React yalnız konteyneri render edir ([dashboard.tsx](src/components/dashboard/dashboard.tsx)).
+- İstifadəçi qərarları: bizim brendlər 8 ("(8)"); "Next update date" əvəzinə real "Son yoxlama" (`x-last-check` header).
+- Köhnə panellə müqayisə: köhnə template-i Edge-də açıb Google sorğularını lokal CSV ilə əvəz edərək eyni klik ardıcıllığı ilə DOM mətnləri müqayisə olunub — yeganə fərq bərabər saylı sətirlərin sırasıdır (build.py qaydası: ümumi saya görə).
+
 ## Əmrlər
 - `npm run dev` — lokal server (PGlite ilə DB quraşdırmadan işləyir)
 - `npm run db:generate` — `src/db/schema.ts` dəyişəndə miqrasiya SQL-i yarat (`drizzle/`)

@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // lokal data / köhnə panelin mənbə faylları / Apps Script
+    ".data/**",
+    "docs/**",
+    "apps-script/**",
   ]),
 ]);
 
