@@ -10,7 +10,7 @@ import type { SyncResult } from "@/lib/sync";
 // o da datanı /api/ingest-ə göndərir və nəticəni qaytarır.
 export async function triggerSync(): Promise<SyncResult> {
   const me = await requireAdmin();
-  const url = process.env.APPS_SCRIPT_URL, secret = process.env.SYNC_SECRET;
+  const url = process.env.APPS_SCRIPT_URL?.trim(), secret = process.env.SYNC_SECRET?.trim();
   if (!url || !secret) return { status: "error", message: "Apps Script web app qoşulmayıb (APPS_SCRIPT_URL). Sheet-də “SR Reporting → İndi göndər” menyusundan istifadə edin." };
 
   const db = await getDb();

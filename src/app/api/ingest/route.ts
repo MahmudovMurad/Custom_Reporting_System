@@ -18,7 +18,7 @@ type Body = {
 };
 
 function authorized(req: Request): boolean {
-  const secret = process.env.SYNC_SECRET;
+  const secret = process.env.SYNC_SECRET?.trim();      // Windows-dan əlavə olunanda sonda "\r" qala bilir
   if (!secret) return false;
   const got = Buffer.from(req.headers.get("authorization") || ""), want = Buffer.from(`Bearer ${secret}`);
   return got.length === want.length && timingSafeEqual(got, want);
