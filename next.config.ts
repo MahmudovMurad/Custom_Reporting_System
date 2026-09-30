@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   // PGlite (lokal DB) WASM fayllarını öz qovluğundan oxuyur — bundle-a salınmamalıdır
   serverExternalPackages: ["@electric-sql/pglite"],
   poweredByHeader: false,
+  // www.srhesabat.com → srhesabat.com (vercel.app ünvanı yönləndirilmir: Apps Script /api/ingest-ə oradan POST edir)
+  async redirects() {
+    return [{ source: "/:path*", has: [{ type: "host", value: "www.srhesabat.com" }], destination: "https://srhesabat.com/:path*", permanent: true }];
+  },
   async headers() {
     return [{
       source: "/:path*",
