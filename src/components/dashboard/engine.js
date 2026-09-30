@@ -14,7 +14,7 @@ const CFG = {
               'Changan.az', 'Skoda.az', 'Avatr.az', 'İnternet', 'Youtube', 'Google', 'Tv'],
   // Bizim brendlər — 8 (istifadəçi qərarı 29.09.2026: köhnə paneldəki "(7)" yazısı səhv idi)
   ourBrands: ['Changan', 'Lynk & Co', 'Mercedes', 'Skoda', 'Xpeng', 'Avatr', 'Leap', 'Deepal'],
-  autoRefreshMinutes: 15,                  // səhifə açıq qalanda serverdən yeni datanı bu intervalla yoxlayır
+  autoRefreshMinutes: 1,                   // səhifə açıq qalanda serverdən yeni datanı bu intervalla yoxlayır (dəyişməyibsə 304 — ucuzdur)
   headerBrands: [['Mercedes-Benz', 'Mercedes'], ['Changan', 'Changan'], ['Xpeng', 'Xpeng'], ['Avatr', 'Avatr'],
                  ['Skoda', 'Skoda'], ['Lynk & Co', 'Lynk & Co']],
 };
@@ -1188,10 +1188,11 @@ function showNotice(kind, text, autoHideMs) {
 }
 const whenTxt = ms => { const d = new Date(ms); return `${d.getDate()} ${MON3[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
-const DATA = { etag: null, lastCheck: 0, syncedAt: 0, busy: false };
+const DATA = { etag: null, lastCheck: 0, syncedAt: 0, busy: false, loading: false };
 
 async function fetchData() {                           // yeni paket və ya null (dəyişməyib)
-  const r = await fetch('/api/data', { headers: DATA.etag ? { 'if-none-match': DATA.etag } : {}, cache: 'no-store' });
+  // ?t= — brauzer/proxy/extension keşi köhnə paketi qaytarmasın (F5-də də həmişə serverdən)
+  const r = await fetch('/api/data?t=' + Date.now(), { headers: DATA.etag ? { 'if-none-match': DATA.etag } : {}, cache: 'no-store' });
   if (r.status === 401) { location.href = '/login'; return null; }
   const lc = r.headers.get('x-last-check'); if (lc) DATA.lastCheck = Date.parse(lc);
   if (r.status === 304) return null;
@@ -1256,8 +1257,15 @@ function refreshMeta() {
 }
 
 async function refreshData(quiet) {
-  try { const p = await fetchData(); if (p) await applyPayload(p, false); refreshMeta(); }
+  if (DATA.loading) return;
+  DATA.loading = true;
+  try {
+    const p = await fetchData();
+    if (p) { await applyPayload(p, false); if (quiet && !DATA.busy) showNotice('ok', 'Yeni data yükləndi.', 5000); }
+    refreshMeta();
+  }
   catch (e) { if (!quiet) showNotice('error', e.message); }
+  finally { DATA.loading = false; }
 }
 
 function refreshBtn(busy) {
@@ -1280,10 +1288,12 @@ async function manualRefresh() {                       // yalnız admin (server 
 function bindRefresh() {
   const b = $('btnRefresh');
   if (opts.isAdmin) b.onclick = manualRefresh; else b.remove();
-  const t = setInterval(() => {                          // səhifə açıq qalanda serverdəki yeni datanı özü götürür
-    if (!DATA.busy && document.visibilityState === 'visible') refreshData(true);
-  }, CFG.autoRefreshMinutes * 60000);
+  const tick = () => { if (!DATA.busy && document.visibilityState === 'visible') refreshData(true); };
+  const t = setInterval(tick, CFG.autoRefreshMinutes * 60000);   // səhifə açıq qalanda serverdəki yeni datanı özü götürür
   cleanups.push(() => clearInterval(t));
+  docOn('visibilitychange', tick);                       // tab-a qayıdanda dərhal yoxla
+  addEventListener('focus', tick, { signal: ac.signal });
+  addEventListener('pageshow', e => { if (e.persisted) tick(); }, { signal: ac.signal });   // "geri" ilə bfcache-dən açılanda
 }
 
 /* ====== Başlanğıc ====== */

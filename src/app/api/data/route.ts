@@ -17,7 +17,8 @@ export async function GET(req: Request) {
   const lastCheck: Record<string, string> = run?.at ? { "x-last-check": run.at.toISOString() } : {};
   if (!ds) return Response.json({ error: "Hələ data yoxdur — sync gözlənilir." }, { status: 404, headers: lastCheck });
   const etag = `"${ds.hash.slice(0, 32)}"`;
-  const headers = { etag, "cache-control": "private, no-cache", ...lastCheck };
+  // no-store: brauzer və aralıq proxy-lər paketi saxlamasın (304 yoxlaması klientin göndərdiyi if-none-match ilə işləyir)
+  const headers = { etag, "cache-control": "private, no-store, max-age=0", vary: "Cookie", ...lastCheck };
   if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });
   return new Response(ds.payload, { headers: { ...headers, "content-type": "application/json; charset=utf-8" } });
 }
