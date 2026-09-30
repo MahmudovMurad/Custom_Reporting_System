@@ -131,6 +131,7 @@ export const stockRows = pgTable(
     actual: integer("actual").notNull(),
     beh: integer("beh").notNull(),
     qeyd: text("qeyd").notNull(),
+    period: text("period").notNull().default(""),       // "YYYY-MM" (Real Stock "Tarix" sütunu)
   },
   (t) => [index("stock_rows_snapshot_idx").on(t.snapshotId, t.pos)],
 );

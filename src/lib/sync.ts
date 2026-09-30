@@ -80,7 +80,7 @@ export async function runSync(db: DB, opts: Opts): Promise<SyncResult> {
       const [snap] = await db.select().from(schema.stockSnapshots).orderBy(desc(schema.stockSnapshots.id)).limit(1);
       stock = snap ? (await db.select().from(schema.stockRows).where(eq(schema.stockRows.snapshotId, snap.id)).orderBy(schema.stockRows.pos))
         .map((r) => ({ brand: r.brand, model: r.model, version: r.version, year: r.year, price: r.price, faiz: r.faiz, ilkin: r.ilkin,
-          muddet: r.muddet, ayliq: r.ayliq, stok: r.stok, real: r.real, hedef: r.hedef, actual: r.actual, beh: r.beh, qeyd: r.qeyd })) : [];
+          muddet: r.muddet, ayliq: r.ayliq, stok: r.stok, real: r.real, hedef: r.hedef, actual: r.actual, beh: r.beh, qeyd: r.qeyd, period: r.period })) : [];
     }
     if (crm.skipped) warnings.push(`Main Data: ${crm.skipped} sətirdə tarix oxunmadı — atıldı`);
     const h = hashes(crm, market, stock);
