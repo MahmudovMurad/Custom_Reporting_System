@@ -638,7 +638,7 @@ function update() {
 /* ====== Real Stok lövhəsi ====== */
 // Brend kartları (model cədvəli: stok / satış) + seçilmiş modelin detal paneli.
 // Dövr (Real Stock "Tarix" sütunu, YYYY-MM): from/to = RS.periods indeksləri. Aralıqda stok son aydan, hədəf/satış/beh ayların cəmi.
-const RS = { rows: [], periods: [], from: 0, to: -1, preset: 'l1', q: '', year: '', only: 'all', sort: 'pct', sel: '', ver: -1, gs: [], live: false, at: 0, border: [] };
+const RS = { rows: [], periods: [], from: 0, to: -1, preset: 'l1', q: '', year: '', only: 'all', sort: 'pct', sel: '', gs: [], live: false, at: 0, border: [] };
 const RS_ONLY = [['all', 'Hamısı'], ['stock', 'Stokda var'], ['target', 'Hədəfi olan'], ['gap', 'Hədəfdən geri']];
 const RS_SORT = [['pct', 'Hədəf %'], ['real', 'Real Stok'], ['hedef', 'Hədəf'], ['actual', 'Satış'], ['price', 'Qiymət'], ['name', 'Ad']];
 const RS_SUM = ['stok', 'real', 'hedef', 'actual', 'beh'];
@@ -721,7 +721,7 @@ function rsGroups() {
   const out = new Map();
   for (const r of rsPeriodRows()) {
     if (RS.year && String(r.year == null ? '' : r.year) !== RS.year) continue;
-    if (RS.q && !norm(r.model + ' ' + r.version).includes(RS.q)) continue;
+    if (RS.q && !norm(r.model).includes(RS.q)) continue;
     const k = r.brand + '|' + r.model;
     let g = out.get(k);
     if (!g) { g = { key: k, brand: r.brand, model: r.model, rows: [], years: new Set(), price: null, prices: new Set(), ilkin: null, faiz: new Set(), muddet: new Set(), ayliq: null }; RS_SUM.forEach(f => g[f] = 0); out.set(k, g); }
@@ -758,7 +758,7 @@ function renderRS() {
     b.gs.push(g); RS_SUM.forEach(f => b[f] += g[f]);
   });
   RS.gs = gs;
-  if (!gs.some(g => g.key === RS.sel)) { RS.sel = gs.length ? gs[0].key : ''; RS.ver = -1; }
+  if (!gs.some(g => g.key === RS.sel)) RS.sel = gs.length ? gs[0].key : '';
   const tp = ratio(t.actual, t.hedef);
   const span = !RS.periods.length ? '' : RS.from === RS.to ? mLong(RS.periods[RS.from]) : mLabel(RS.periods[RS.from]) + ' – ' + mLabel(RS.periods[RS.to]);
   $('rsEb').textContent = 'SATIŞ VƏ STOK · ' + brands.length + ' BREND' + (span ? ' · ' + span.toLocaleUpperCase('az') : '');
@@ -788,35 +788,31 @@ function renderRsDet() {
   const el = $('rsDet'), g = RS.gs.find(x => x.key === RS.sel);
   if (!g) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
-  if (RS.ver >= g.rows.length) RS.ver = -1;
-  const r = RS.ver >= 0 ? g.rows[RS.ver] : null, o = r || g, multi = !r && g.rows.length > 1;
+  const o = g, multi = g.prices.size > 1;                 // model versiyasız, cəmi saylarla göstərilir
   const p = ratio(o.actual, o.hedef), left = Math.max(0, o.hedef - o.actual);
   const ys = [...g.years].sort((a, b) => a - b);
-  const yr = r ? (r.year == null ? '—' : r.year) : !ys.length ? '—' : ys.length > 1 ? ys[0] + '–' + ys[ys.length - 1] : ys[0];
+  const yr = !ys.length ? '—' : ys.length > 1 ? ys[0] + '–' + ys[ys.length - 1] : ys[0];
   const st = !o.hedef ? ['', 'Hədəf yoxdur'] : o.actual >= o.hedef ? ['ok', 'Hədəfdə'] : ['bad', 'Hədəfdən geri'];
-  const vers = g.rows.length > 1
-    ? `<div class="rsx-vers" role="group" aria-label="Versiya">` + [[-1, 'Bütün versiyalar']].concat(g.rows.map((x, i) => [i, x.version || '(versiya adı yoxdur)']))
-      .map(([i, n]) => `<button type="button" data-ver="${i}" aria-pressed="${i === RS.ver}">${esc(n)}</button>`).join('') + '</div>'
-    : (g.rows[0].version ? `<div class="rsx-v1">${esc(g.rows[0].version)}</div>` : '');
+  const notes = [...new Set(g.rows.map(x => x.qeyd).filter(Boolean))];
   const cell = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
   const line = (l, v) => `<div><dt>${l}</dt><dd>${v}</dd></div>`;
   el.innerHTML = `<div class="rsx-d1"><div class="rsx-eb">${esc(g.brand)}</div><h3 class="rsx-mn">${esc(g.model)}</h3>`
-    + `<div class="rsx-tags"><span>${yr}</span><span>${g.rows.length} versiya</span><span class="st ${st[0]}">${st[1]}</span></div>${vers}`
+    + `<div class="rsx-tags"><span>${yr}</span><span class="st ${st[0]}">${st[1]}</span></div>`
     + `<div class="rsx-ex"><div class="rsx-exh"><span>Hədəf icrası</span><b>${ratioTxt(p)}</b></div>${rsBar(p)}`
     + `<p>${o.hedef ? `${fmt(o.actual)} satılıb, hədəf ${fmt(o.hedef)} — ${left ? fmt(left) + ' qalıb' : 'hədəf tamamlanıb'}` : `${fmt(o.actual)} satılıb, hədəf təyin olunmayıb`}</p></div></div>`
     + `<div class="rsx-d2"><h4>Stok və satış</h4><div class="rsx-cells">`
     + cell('Stok', fmt(o.stok)) + cell('Real stok', fmt(o.real)) + cell('Beh', fmt(o.beh))
     + cell('Hədəf', fmt(o.hedef)) + cell('Satış', fmt(o.actual)) + cell('Qalan', o.hedef ? fmt(left) : '—') + '</div></div>'
     + `<div class="rsx-d3"><h4>Qiymət və ödəniş</h4><dl>`
-    + line('Nağd qiymət', money(o.price)) + line('İlkin faiz', r ? (r.faiz == null ? '—' : r.faiz + '%') : pctTxt(g.faiz))
-    + line('İlkin ödəniş', money(o.ilkin)) + line('Müddət', esc(r ? r.muddet || '—' : [...g.muddet].join(' / ') || '—'))
+    + line('Nağd qiymət', money(o.price)) + line('İlkin faiz', pctTxt(g.faiz))
+    + line('İlkin ödəniş', money(o.ilkin)) + line('Müddət', esc([...g.muddet].join(' / ') || '—'))
     + line('Aylıq ödəniş', money(o.ayliq)) + '</dl>'
-    + (multi ? '<p class="rsx-fn">Bir neçə versiya olduqda qiymət və ödənişlər ən aşağı göstəricidir. <span class="bad">Qırmızı fakt</span> — hədəfdən geri.</p>' : '<p class="rsx-fn"><span class="bad">Qırmızı fakt</span> — hədəfdən geri.</p>')
-    + (r && r.qeyd ? `<div class="note">${esc(r.qeyd)}</div>` : '') + '</div>';
+    + `<p class="rsx-fn">${multi ? 'Fərqli qiymətlər olduqda ən aşağısı göstərilir. ' : ''}<span class="bad">Qırmızı fakt</span> — hədəfdən geri.</p>`
+    + notes.map(n => `<div class="note">${esc(n)}</div>`).join('') + '</div>';
 }
 function rsSelect(key) {
   if (RS.sel === key) return;
-  RS.sel = key; RS.ver = -1;
+  RS.sel = key;
   document.querySelectorAll('#rsGrid tr[data-g]').forEach(tr => { const on = tr.dataset.g === key; tr.classList.toggle('on', on); tr.setAttribute('aria-selected', on); });
   renderRsDet();
 }
@@ -832,11 +828,10 @@ function buildRsFilters() {
   tabs('rsOnly', RS_ONLY, RS.only, v => { RS.only = v; syncRs(); });
   tabs('rsSort', RS_SORT, RS.sort, v => { RS.sort = v; syncRs(); });
   $('rsSearch').oninput = () => { RS.q = norm($('rsSearch').value); renderRS(); };
-  $('rsReset').onclick = () => { rsLastMonth(); RS.year = ''; RS.only = 'all'; RS.sort = 'pct'; RS.q = ''; $('rsSearch').value = ''; RS.sel = ''; RS.ver = -1; syncRs(); };
+  $('rsReset').onclick = () => { rsLastMonth(); RS.year = ''; RS.only = 'all'; RS.sort = 'pct'; RS.q = ''; $('rsSearch').value = ''; RS.sel = ''; syncRs(); };
   const grid = $('rsGrid');
   grid.onclick = e => { const tr = e.target.closest('tr[data-g]'); if (tr) rsSelect(tr.dataset.g); };
   grid.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-g]')) { e.preventDefault(); rsSelect(e.target.dataset.g); } };
-  $('rsDet').onclick = e => { const b = e.target.closest('[data-ver]'); if (b) { RS.ver = +b.dataset.ver; renderRsDet(); } };
 }
 function rsLastMonth() { RS.from = RS.to = RS.periods.length - 1; RS.preset = 'l1'; }
 function syncRs() {
@@ -858,7 +853,7 @@ function setRealStock(rows, live) {
   if (RS.preset === 'custom' && a >= 0 && b >= 0) { RS.from = a; RS.to = b; }        // yenilənmədə xüsusi aralıq saxlanılır
   else if (RS.periods.length) { const r = rsPresetRange(RS.preset) || rsPresetRange('l1'); RS.from = r[0]; RS.to = r[1]; }
   const keys = new Set(rows.map(r => r.brand + '|' + r.model));
-  if (RS.sel && !keys.has(RS.sel)) { RS.sel = ''; RS.ver = -1; }
+  if (RS.sel && !keys.has(RS.sel)) RS.sel = '';
   buildRsFilters(); syncRs();
 }
 
