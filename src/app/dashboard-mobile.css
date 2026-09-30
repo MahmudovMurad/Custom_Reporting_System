@@ -1,0 +1,36 @@
+/* Telefon üçün əlavələr — yalnız ≤760px; kompüter görünüşü köhnə panellə birə-bir qalır (dashboard.css toxunulmur). */
+@media (max-width: 760px) {
+  /* başlıq: 1-ci sətir logo + istifadəçi menyusu, 2-ci sətir brendlər (üfüqi sürüşür) */
+  .strip .wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding-block: 10px 6px; }
+  .strip .logo { grid-column: 1; grid-row: 1; margin-right: 0; font-size: 17px; }
+  .strip .user-menu { grid-column: 2; grid-row: 1; }
+  .strip .user-name { display: none; }
+  .strip .brands {
+    grid-column: 1 / -1; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    margin-inline: -16px; padding-inline: 10px; -webkit-overflow-scrolling: touch;
+  }
+  .strip .brands::-webkit-scrollbar { display: none; }
+  .brand-btn { flex: none; font-size: 12.5px; letter-spacing: .12em; padding: 7px 8px; }
+
+  /* yuxarı zolaq: tarix möhürləri kiçik, Yenilə sağda */
+  .bar-top { gap: 6px; }
+  .stamp { font-size: 12px; padding: 4px 8px; }
+  .btn-refresh { min-height: 36px; padding: 6px 12px; }
+
+  .sec-head { padding: 14px 16px; }
+  .sec-head h2 { font-size: 20px; letter-spacing: .1em; }
+
+  /* tarix pəncərəsi: ay düymələri bütün genişliyi tutsun */
+  .yr .mg { width: 100%; }
+  .pop.date .dcal { padding-bottom: 4px; }
+
+  /* Real Stock: filtr başlıqları öz sırasında, cədvəldə model sütunu sürüşəndə görünür qalsın */
+  .rs-filters .flab { flex-basis: 100%; margin-top: 2px; }
+  .rs-search { flex: 1 1 100%; min-width: 0; }
+  table.rs-t th:first-child, table.rs-t td:first-child {
+    position: sticky; left: 0; z-index: 1; background: inherit; box-shadow: 1px 0 0 var(--hair);
+  }
+  table.rs-t th:first-child { z-index: 3; background: var(--surface-2); }
+  table.rs-t td:first-child { max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+  tr.g .vcount { display: none; }
+}

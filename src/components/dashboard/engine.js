@@ -499,7 +499,7 @@ function renderCmpChart() {
     let d = ''; for (let i = 0; i < n; i++) d += (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(vals[i]).toFixed(1);
     if (n > 1) s += `<path class="g-area" d="${d}L${x(n - 1).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}Z"/><path class="g-line" d="${d}"/>`;
     for (let i = 0; i < n; i++) s += `<circle class="g-pt" cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3"/>`;
-    if (step >= 30) for (let i = 0; i < n; i++) {   // rəqəmlər: satış üstdə, bazar altda; üst-üstə düşəndə bazar aşağı sürüşür
+    if (step >= 30 && W >= 520) for (let i = 0; i < n; i++) {   // (telefonda iki xəttin rəqəmləri üst-üstə düşür — tooltip qalır) rəqəmlər: satış üstdə, bazar altda; üst-üstə düşəndə bazar aşağı sürüşür
       const ys = Math.max(m.t - 6, y(vals[i]) - 8);
       s += `<text class="pl" x="${x(i).toFixed(1)}" y="${ys.toFixed(1)}" text-anchor="middle">${fmt(vals[i])}</text>`;
       if (mvals[i] != null) { let ym = y(mvals[i]) - 8; if (Math.abs(ym - ys) < 11) ym = y(mvals[i]) + 15; s += `<text class="pl2" x="${x(i).toFixed(1)}" y="${Math.min(m.t + ih - 2, ym).toFixed(1)}" text-anchor="middle">${fmt(mvals[i])}</text>`; }
@@ -923,7 +923,7 @@ function renderMK() {
   const line = (vals, cls, dash) => { let dd = ''; vals.forEach((v, i) => dd += (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1));
     out += `<path class="mk-line ${cls}${dash ? ' dash' : ''}" d="${dd}"/>`; vals.forEach((v, i) => out += `<circle class="mk-pt ${cls}${dash ? ' hollow' : ''}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5"/>`); };
   line(rv, 'ln2', false); line(bv, 'ln1', false);
-  if (step >= 34) for (let i = 0; i < n; i++) {
+  if (step >= 34 && W >= 520) for (let i = 0; i < n; i++) {   // telefonda iki xəttin rəqəmləri üst-üstə düşür — tooltip qalır
     const yb = Math.max(m.t - 6, y(bv[i]) - 8); let yr = y(rv[i]) - 8; if (Math.abs(yr - yb) < 11) yr = y(rv[i]) + 15;
     const an = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
     out += `<text class="pl" x="${x(i).toFixed(1)}" y="${yb.toFixed(1)}" text-anchor="${an}">${f(bv[i])}</text>`

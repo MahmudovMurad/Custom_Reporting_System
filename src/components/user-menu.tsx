@@ -28,10 +28,10 @@ export default function UserMenu({ user }: Props) {
   const pick = (d: Dialog) => { setOpen(false); setDialog(d); };
 
   return (
-    <div className={s.menuWrap} ref={ref}>
+    <div className={`${s.menuWrap} user-menu`} ref={ref}>
       <button type="button" className={s.menuBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className={s.avatar} aria-hidden="true">{user.name.trim().charAt(0).toUpperCase() || "?"}</span>
-        <span className={s.menuName}>{user.name}</span>
+        <span className={`${s.menuName} user-name`}>{user.name}</span>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
       {open && (

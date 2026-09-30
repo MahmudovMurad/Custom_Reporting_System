@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { triggerSync } from "@/app/actions/sync";
 import { MARKUP } from "./markup";
 import "@/app/dashboard.css";
+import "@/app/dashboard-mobile.css";
 
 // Köhnə panelin mühərriki (engine.js) bu konteynerin içini imperativ idarə edir — React məzmuna toxunmur.
 export default function Dashboard({ isAdmin }: { isAdmin: boolean }) {
