@@ -1,0 +1,1 @@
+ALTER TABLE "stock_rows" ADD COLUMN "period" text DEFAULT '' NOT NULL;

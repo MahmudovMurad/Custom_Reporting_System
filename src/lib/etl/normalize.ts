@@ -46,6 +46,32 @@ export function parseDate(input: unknown): number | null {
   return null;
 }
 
+const AZ_MONTHS = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avqust", "sentyabr", "oktyabr", "noyabr", "dekabr"];
+const EN_MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const monthIdx = (w: string) => {
+  const k = hnorm(w).replace(/[^a-z]/g, "");
+  if (k.length < 3) return -1;
+  const f = (l: string[]) => l.findIndex((m) => hnorm(m).startsWith(k) || k.startsWith(hnorm(m)));
+  const i = f(AZ_MONTHS);
+  return i >= 0 ? i : f(EN_MONTHS);
+};
+
+/** Real Stock "Tarix" xanası → "YYYY-MM" (oxunmasa ""). Formatlar: tam tarix (parseDate), YYYY-MM, MM.YYYY, MM/YYYY, "Sentyabr 2026", "2026 Sentyabr" */
+export function parseYm(input: unknown): string {
+  const s = String(input ?? "").trim();
+  if (!s) return "";
+  const ym = (y: number, m: number) => (m >= 1 && m <= 12 && y >= 2000 && y < 2100 ? `${y}-${String(m).padStart(2, "0")}` : "");
+  let m: RegExpMatchArray | null;
+  if ((m = s.match(/^(\d{4})[-./](\d{1,2})$/))) return ym(+m[1], +m[2]);
+  if ((m = s.match(/^(\d{1,2})[-./](\d{4})$/))) return ym(+m[2], +m[1]);
+  if ((m = s.match(/^([^\d\s.,/-]+)[\s.,/-]+(\d{2,4})$/))) { const i = monthIdx(m[1]); const y = +m[2] < 100 ? +m[2] + 2000 : +m[2]; return i < 0 ? "" : ym(y, i + 1); }
+  if ((m = s.match(/^(\d{4})[\s.,/-]+([^\d\s.,/-]+)$/))) { const i = monthIdx(m[2]); return i < 0 ? "" : ym(+m[1], i + 1); }
+  const t = parseDate(s);
+  if (t === null) return "";
+  const d = new Date(t);
+  return ym(d.getUTCFullYear(), d.getUTCMonth() + 1);
+}
+
 /** "28,900.00 ₼" · "65.900.00 ₼" · "2890" · "10%" → ədəd. Sonuncu ayırıcıdan sonra 1–2 rəqəm = onluq hissə */
 export function rsNum(s: unknown): number | null {
   const t = String(s ?? "").replace(/[^\d.,]/g, "");

@@ -636,26 +636,97 @@ function update() {
   if (openPop && openPop.pop._draw) openPop.pop._draw();
 }
 /* ====== Real Stok lövhəsi ====== */
-const RS = { rows: [], brand: '', q: '', year: '', only: 'all', sort: 'pct', open: new Set(), sel: '', live: false, at: 0, border: [] };
+// Brend kartları (model cədvəli: stok / satış) + seçilmiş modelin detal paneli.
+// Dövr (Real Stock "Tarix" sütunu, YYYY-MM): from/to = RS.periods indeksləri. Aralıqda stok son aydan, hədəf/satış/beh ayların cəmi.
+const RS = { rows: [], periods: [], from: 0, to: -1, preset: 'l1', q: '', year: '', only: 'all', sort: 'pct', sel: '', ver: -1, gs: [], live: false, at: 0, border: [] };
 const RS_ONLY = [['all', 'Hamısı'], ['stock', 'Stokda var'], ['target', 'Hədəfi olan'], ['gap', 'Hədəfdən geri']];
 const RS_SORT = [['pct', 'Hədəf %'], ['real', 'Real Stok'], ['hedef', 'Hədəf'], ['actual', 'Satış'], ['price', 'Qiymət'], ['name', 'Ad']];
 const RS_SUM = ['stok', 'real', 'hedef', 'actual', 'beh'];
 const money = v => v == null ? '—' : fmt(v) + ' ₼';
-const meter = (a, h) => {
-  const p = h ? a / h : null, w = p == null ? 0 : Math.min(100, p * 100);
-  return `<span class="meter"><i><b class="${p >= 1 ? 'done' : ''}" style="width:${w.toFixed(0)}%"></b></i><span>${p == null ? '—' : (p * 100).toFixed(0) + '%'}</span></span>`;
-};
+const ratio = (a, h) => h ? a / h : null;
+const ratioTxt = p => p == null ? '—' : (p * 100).toFixed(0) + '%';
+const dash = v => v ? fmt(v) : '<span class="nil">–</span>';
+const rsBar = p => `<span class="rsx-bar"><i class="${p != null && p >= 1 ? 'done' : ''}" style="width:${p == null ? 0 : Math.min(100, p * 100).toFixed(0)}%"></i></span>`;
+const pctTxt = s => { const a = [...s].sort((x, y) => x - y); return !a.length ? '—' : a.length === 1 ? a[0] + '%' : a[0] + '–' + a[a.length - 1] + '%'; };
+function rsPeriodRows() {
+  if (!RS.periods.length) return RS.rows;
+  if (RS.from === RS.to) { const p = RS.periods[RS.from]; return RS.rows.filter(r => r.period === p); }
+  const lo = RS.periods[RS.from], hi = RS.periods[RS.to];
+  const inRange = RS.rows.filter(r => r.period >= lo && r.period <= hi).sort((a, b) => a.period.localeCompare(b.period));
+  const out = new Map();                                // versiya üzrə: son ayın sətri + satış sahələrinin cəmi
+  for (const r of inRange) {
+    const k = [r.brand, r.model, r.version, r.year].join('|'), o = out.get(k);
+    out.set(k, o ? { ...r, hedef: o.hedef + r.hedef, actual: o.actual + r.actual, beh: o.beh + r.beh, qeyd: r.qeyd || o.qeyd } : { ...r });
+  }
+  return [...out.values()];
+}
+/* --- dövr seçimi (Bazar payı bölməsinin seçicisi ilə eyni) --- */
+const RS_PRESETS = [['all', 'Bütün dövr'], ['l1', 'Son ay'], ['l3', 'Son 3 ay'], ['l6', 'Son 6 ay'], ['ytd', 'Bu il'], ['py', 'Keçən il']];
+function rsPresetRange(id) {
+  const P = RS.periods, last = P.length - 1;
+  if (!P.length) return null;                           // Sheet-də "Tarix" sütunu hələ yoxdur
+  const yL = P[last].slice(0, 4);
+  switch (id) {
+    case 'l1': return [last, last];
+    case 'l3': return [Math.max(0, last - 2), last];
+    case 'l6': return [Math.max(0, last - 5), last];
+    case 'ytd': return [P.findIndex(m => m.startsWith(yL)), last];
+    case 'py': { const y = String(+yL - 1), idx = P.map((m, i) => [m, i]).filter(([m]) => m.startsWith(y)); return idx.length ? [idx[0][1], idx[idx.length - 1][1]] : null; }
+    default: return [0, last];
+  }
+}
+function rsRangeLabel() {
+  const P = RS.periods, span = RS.from === RS.to ? mLong(P[RS.from]) : mLabel(P[RS.from]) + ' – ' + mLabel(P[RS.to]);
+  const p = RS_PRESETS.find(q => q[0] === RS.preset);
+  return p ? p[1] + ' · ' + span : span;
+}
+function rsSetRange(a, b, preset) {
+  RS.from = Math.min(a, b); RS.to = Math.max(a, b);
+  RS.preset = preset || (RS.from === 0 && RS.to === RS.periods.length - 1 ? 'all' : 'custom');
+  syncRs();
+}
+let rsAnchor = -1;
+function openRsDatePop() {
+  const w = $('fw-rsDate');
+  if (openPop && openPop.wrap === w) return closePop();
+  closePop(); rsAnchor = -1;
+  const P = RS.periods, empty = !P.length, years = empty ? [String(new Date().getFullYear())] : [...new Set(P.map(m => m.slice(0, 4)))];
+  const pop = document.createElement('div');
+  pop.className = 'pop date mkdate'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Dövr');
+  pop.innerHTML = `<div class="presets" role="listbox">${RS_PRESETS.map(([id, t]) => { const r = rsPresetRange(id);
+      return `<button type="button" class="opt" role="option" data-p="${id}" aria-selected="${empty ? id === 'all' : RS.preset === id}"${r ? '' : ' disabled'}><span class="chk">✓</span>${t}</button>`; }).join('')}</div>
+    <div class="dcal"><h4>Ay seç</h4><div class="years">${years.map(y => `<div class="yr"><button type="button" class="ybtn" data-y="${y}"${empty ? ' disabled' : ''}>${y}</button><div class="mg">${MON3C.map((nm, mi) => {
+        const i = P.indexOf(y + '-' + String(mi + 1).padStart(2, '0'));
+        return `<button type="button" class="mb" data-i="${i}"${i < 0 ? ' disabled' : ''}>${nm}</button>`; }).join('')}</div></div>`).join('')}</div>
+      <p class="mhint">${empty ? 'Aylar Real Stock vərəqinə "Tarix" sütunu əlavə olunanda aktiv olacaq. Hazırda vərəqin son vəziyyəti göstərilir.'
+        : 'Bir aya klik — həmin ay. İkinci aya klik — aralıq (məs. yanvar → mart). İlə klik — bütün il. Aralıqda stok son aydan, hədəf / satış / beh ayların cəmidir.'}</p>
+      <div class="pop-actions mk-actions"><button type="button" class="btn" id="rsDateReset">Sıfırla</button><button type="button" class="btn primary" id="rsDateClose">Bağla</button></div></div>`;
+  mountPop(w, pop);
+  const paint = () => {
+    pop.querySelectorAll('.mb').forEach(b => { const i = +b.dataset.i; b.classList.toggle('sel', i >= 0 && i >= RS.from && i <= RS.to); b.classList.toggle('anchor', i === rsAnchor); });
+    pop.querySelectorAll('[data-p]').forEach(b => b.setAttribute('aria-selected', b.dataset.p === (empty ? 'all' : RS.preset)));
+  };
+  paint();
+  pop.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const r = rsPresetRange(b.dataset.p); if (!r) return; rsAnchor = -1; rsSetRange(r[0], r[1], b.dataset.p); paint(); });
+  pop.querySelectorAll('.ybtn').forEach(b => b.onclick = () => { const idx = P.map((m, i) => [m, i]).filter(([m]) => m.startsWith(b.dataset.y)); if (!idx.length) return; rsAnchor = -1; rsSetRange(idx[0][1], idx[idx.length - 1][1]); paint(); });
+  pop.querySelectorAll('.mb').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i; if (i < 0) return;
+    if (rsAnchor >= 0) { rsSetRange(rsAnchor, i); rsAnchor = -1; } else { rsAnchor = i; rsSetRange(i, i); }
+    paint();
+  });
+  $('rsDateReset').onclick = () => { rsAnchor = -1; const r = rsPresetRange('l1'); if (r) { rsSetRange(r[0], r[1], 'l1'); paint(); } };
+  $('rsDateClose').onclick = closePop;
+}
 function rsGroups() {
   const out = new Map();
-  for (const r of RS.rows) {
-    if (RS.brand && r.brand !== RS.brand) continue;
+  for (const r of rsPeriodRows()) {
     if (RS.year && String(r.year == null ? '' : r.year) !== RS.year) continue;
     if (RS.q && !norm(r.model + ' ' + r.version).includes(RS.q)) continue;
     const k = r.brand + '|' + r.model;
     let g = out.get(k);
-    if (!g) { g = { key: k, brand: r.brand, model: r.model, rows: [], year: null, price: null, prices: new Set(), ilkin: null, faiz: new Set(), muddet: new Set(), ayliq: null }; RS_SUM.forEach(f => g[f] = 0); out.set(k, g); }
+    if (!g) { g = { key: k, brand: r.brand, model: r.model, rows: [], years: new Set(), price: null, prices: new Set(), ilkin: null, faiz: new Set(), muddet: new Set(), ayliq: null }; RS_SUM.forEach(f => g[f] = 0); out.set(k, g); }
     g.rows.push(r); RS_SUM.forEach(f => g[f] += r[f]);
-    if (r.year != null && (g.year == null || r.year < g.year)) g.year = r.year;
+    if (r.year != null) g.years.add(r.year);
     if (r.price != null) { g.prices.add(r.price); if (g.price == null || r.price < g.price) g.price = r.price; }
     if (r.ilkin != null && (g.ilkin == null || r.ilkin < g.ilkin)) g.ilkin = r.ilkin;
     if (r.faiz != null) g.faiz.add(r.faiz);
@@ -674,102 +745,120 @@ function rsGroups() {
   const bi = b => { const i = RS.border.indexOf(b); return i < 0 ? 99 : i; };   // brendlər Sheet-dəki ardıcıllıqla
   return gs.sort((a, b) => (bi(a.brand) - bi(b.brand)) || inner(a, b) || a.model.localeCompare(b.model, 'az'));
 }
-function rsDetail(r) {
-  const f = (lab, val) => `<div class="f"><span>${lab}</span><b>${val}</b></div>`;
-  return `<div class="det"><h4>${esc(r.version || r.model)}</h4>`
-    + f('İstehsal ili', r.year == null ? '—' : r.year) + f('Nağd qiymət', money(r.price))
-    + f('İlkin ödəniş faizi', r.faiz == null ? '—' : r.faiz + '%') + f('İlkin ödəniş', money(r.ilkin))
-    + f('Müddət', esc(r.muddet || '—')) + f('Aylıq ödəniş', money(r.ayliq))
-    + f('Stok sayı', fmt(r.stok)) + f('Real Stok', fmt(r.real)) + f('Hədəf', fmt(r.hedef))
-    + f('Actual Satış', fmt(r.actual)) + f('Beh sayı', fmt(r.beh))
-    + f('Hədəf %', r.hedef ? (r.actual / r.hedef * 100).toFixed(0) + '%' : '—')
-    + (r.qeyd ? `<div class="note">${esc(r.qeyd)}</div>` : '') + '</div>';
-}
+// Kartda model adından brend prefiksi atılır ("Lynk & Co 06" → "06")
+const shortModel = (brand, model) => { const b = norm(brand) + ' ', m = norm(model); return m.startsWith(b) && model.length > brand.length + 1 ? model.slice(brand.length + 1) : model; };
+const RS_COLS = '<colgroup><col><col class="n"><col class="n"><col class="n"><col class="n"><col class="n"></colgroup>';
 function renderRS() {
   const gs = rsGroups(), t = {}; RS_SUM.forEach(f => t[f] = 0);
   gs.forEach(g => RS_SUM.forEach(f => t[f] += g[f]));
-  $('rsKpis').innerHTML = [['Hədəf', fmt(t.hedef)], ['Actual Satış', fmt(t.actual)],
-    ['Hədəf %', t.hedef ? (t.actual / t.hedef * 100).toFixed(1) + '%' : '—'], ['Beh sayı', fmt(t.beh)],
-    ['Stok sayı', fmt(t.stok)], ['Real Stok', fmt(t.real)]]
-    .map(([l, v]) => `<div class="kpi"><div class="lab">${l}</div><div class="val">${v}</div></div>`).join('');
-  const pctTxt = s => { const a = [...s].sort((x, y) => x - y); return !a.length ? '—' : a.length === 1 ? a[0] + '%' : a[0] + '–' + a[a.length - 1] + '%'; };
-  const cells = o => `<td>${o.year == null ? '—' : o.year}</td><td>${money(o.price)}</td><td>${o.faiz == null ? '—' : o.faiz + '%'}</td><td>${money(o.ilkin)}</td><td>${esc(o.muddet || '—')}</td><td>${money(o.ayliq)}</td><td>${fmt(o.stok)}</td>`
-    + `<td>${fmt(o.real)}</td><td>${fmt(o.hedef)}</td><td>${fmt(o.actual)}</td><td>${fmt(o.beh)}</td><td>${meter(o.actual, o.hedef)}</td>`;
-  const bt = new Map();                                 // brend cəmləri (başlıq sətirləri üçün)
-  gs.forEach(g => { let o = bt.get(g.brand); if (!o) { o = { models: 0 }; RS_SUM.forEach(f => o[f] = 0); bt.set(g.brand, o); } o.models++; RS_SUM.forEach(f => o[f] += g[f]); });
-  let lastBrand = null;
-  const body = gs.map(g => {
-    const open = RS.open.has(g.key), vs = g.rows.length;
-    let pre = '';
-    if (g.brand !== lastBrand) {
-      lastBrand = g.brand; const o = bt.get(g.brand);
-      pre = `<tr class="bh"><td><span class="bn">${esc(g.brand)}</span><span class="bc">${o.models} model</span></td>`
-        + `<td></td><td></td><td></td><td></td><td></td><td></td><td>${fmt(o.stok)}</td><td>${fmt(o.real)}</td><td>${fmt(o.hedef)}</td><td>${fmt(o.actual)}</td>`
-        + `<td>${fmt(o.beh)}</td><td>${meter(o.actual, o.hedef)}</td></tr>`;
-    }
-    let h = `<tr class="g${open ? ' open' : ''}" data-g="${esc(g.key)}" tabindex="0" role="button" aria-expanded="${open}">`
-      + `<td><span class="mname"><span class="chev">▶</span><b>${esc(g.model)}</b>`
-      + `<span class="vcount">${vs} versiya</span></span></td>`
-      + `<td title="ən erkən il">${g.year == null ? '—' : g.year}</td><td title="${g.prices.size > 1 ? 'ən aşağı qiymət' : 'qiymət'}">${money(g.price)}</td><td title="ilkin ödəniş faizi">${pctTxt(g.faiz)}</td><td title="ən aşağı ilkin ödəniş">${money(g.ilkin)}</td><td title="kredit müddəti">${esc([...g.muddet].join(' / ') || '—')}</td><td title="ən aşağı aylıq ödəniş">${money(g.ayliq)}</td>`
-      + `<td>${fmt(g.stok)}</td><td>${fmt(g.real)}</td><td>${fmt(g.hedef)}</td><td>${fmt(g.actual)}</td><td>${fmt(g.beh)}</td>`
-      + `<td>${meter(g.actual, g.hedef)}</td></tr>`;
-    if (open) g.rows.forEach((r, i) => {
-      const id = g.key + '#' + i, sel = RS.sel === id;
-      h += `<tr class="v${sel ? ' sel' : ''}" data-v="${esc(id)}" tabindex="0" role="button" aria-expanded="${sel}">`
-        + `<td>${esc(r.version || '(versiya adı yoxdur)')}</td>${cells(r)}</tr>`;
-      if (sel) h += `<tr class="d"><td colspan="13">${rsDetail(r)}</td></tr>`;
-    });
-    return pre + h;
-  }).join('');
-  $('rsTable').innerHTML = '<thead><tr><th>Model</th><th>İl</th><th>Nağd qiymət</th><th title="İlkin ödəniş faizi">Faiz</th><th>İlkin ödəniş</th><th title="Kredit müddəti (ay)">Müddət</th><th>Aylıq ödəniş</th><th>Stok</th><th>Real Stok</th>'
-    + '<th>Hədəf</th><th>Satış</th><th>Beh</th><th>Hədəf %</th></tr></thead><tbody>'
-    + (gs.length ? body : '<tr><td colspan="13" class="rs-empty">Seçilmiş filtrlərə uyğun model yoxdur.</td></tr>') + '</tbody>';
-  const top = gs.slice().sort((a, b) => b.real - a.real).filter(g => g.real > 0).slice(0, 10);
-  const mx = top.length ? top[0].real : 1;
-  $('rsSide').innerHTML = '<h3>Real Stok — ilk 10 model</h3>' + (top.length ? top.map(g =>
-    `<div class="rs-bar"><span class="nm" title="${esc(g.model)}">${esc(g.model)}</span><span class="vv">${fmt(g.real)}</span>`
-    + `<span class="tr"><i style="width:${(g.real / mx * 100).toFixed(1)}%"></i></span></div>`).join('')
-    : '<div class="rs-empty">Stokda maşın yoxdur.</div>');
+  const brands = [], bm = new Map();
+  gs.forEach(g => {
+    let b = bm.get(g.brand);
+    if (!b) { b = { brand: g.brand, gs: [] }; RS_SUM.forEach(f => b[f] = 0); bm.set(g.brand, b); brands.push(b); }
+    b.gs.push(g); RS_SUM.forEach(f => b[f] += g[f]);
+  });
+  RS.gs = gs;
+  if (!gs.some(g => g.key === RS.sel)) { RS.sel = gs.length ? gs[0].key : ''; RS.ver = -1; }
+  const tp = ratio(t.actual, t.hedef);
+  const span = !RS.periods.length ? '' : RS.from === RS.to ? mLong(RS.periods[RS.from]) : mLabel(RS.periods[RS.from]) + ' – ' + mLabel(RS.periods[RS.to]);
+  $('rsEb').textContent = 'SATIŞ VƏ STOK · ' + brands.length + ' BREND' + (span ? ' · ' + span.toLocaleUpperCase('az') : '');
+  { const b = $('fb-rsDate'); b.querySelector('.v').textContent = RS.periods.length ? rsRangeLabel() : 'Bütün dövr'; b.classList.toggle('on', !!RS.periods.length && RS.preset !== 'l1'); }
+  $('rsPct').textContent = tp == null ? '—' : ratioTxt(tp) + ' icra';
+  $('rsSum').textContent = `${fmt(t.actual)} / ${fmt(t.hedef)} satış · stok ${fmt(t.stok)} · real stok ${fmt(t.real)} · beh ${fmt(t.beh)}`;
+  const head = `<table class="rsx-t">${RS_COLS}<thead><tr><th rowspan="2" class="m">Model</th><th colspan="2" class="grp">Stok</th><th colspan="3" class="grp">Satış</th></tr>`
+    + '<tr><th>Ümumi</th><th>Real</th><th>Hədəf</th><th>Fakt</th><th>Beh</th></tr></thead></table>';
+  const row = g => {
+    const on = g.key === RS.sel, behind = g.hedef > 0 && g.actual < g.hedef;
+    return `<tr data-g="${esc(g.key)}" tabindex="0" aria-selected="${on}"${on ? ' class="on"' : ''}>`
+      + `<td class="m" title="${esc(g.model)}">${esc(shortModel(g.brand, g.model))}</td><td>${dash(g.stok)}</td><td class="b">${dash(g.real)}</td>`
+      + `<td>${dash(g.hedef)}</td><td class="b${behind ? ' bad' : ''}">${dash(g.actual)}</td><td>${dash(g.beh)}</td></tr>`;
+  };
+  $('rsGrid').innerHTML = brands.length ? brands.map(b => {
+    const p = ratio(b.actual, b.hedef);
+    return `<article class="rsx-card"><header class="rsx-ch"><div class="rsx-bt"><h3>${esc(b.brand)}</h3><b>${ratioTxt(p)}</b></div>${rsBar(p)}`
+      + `<div class="rsx-bs"><span>Hədəf <b>${fmt(b.hedef)}</b></span><span>Satış <b>${fmt(b.actual)}</b></span><span>Beh <b>${fmt(b.beh)}</b></span></div></header>`
+      + `<div class="rsx-hd">${head}</div><div class="rsx-sc"><table class="rsx-t">${RS_COLS}<tbody>${b.gs.map(row).join('')}</tbody></table></div></article>`;
+  }).join('') : '<div class="rs-empty">Seçilmiş filtrlərə uyğun model yoxdur.</div>';
+  renderRsDet();
   $('rsUpd').textContent = (RS.live ? 'Sheet-dən yükləndi' : 'snapshot') + (RS.at ? ' · ' + whenTxt(RS.at) : '')
     + ' · ' + fmt(RS.rows.length) + ' sətir';
-  $('rsReset').disabled = !(RS.brand || RS.q || RS.year || RS.only !== 'all' || RS.sort !== 'pct');
+  $('rsReset').disabled = !(RS.q || RS.year || RS.only !== 'all' || RS.sort !== 'pct' || (RS.periods.length && RS.preset !== 'l1'));
+}
+function renderRsDet() {
+  const el = $('rsDet'), g = RS.gs.find(x => x.key === RS.sel);
+  if (!g) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  if (RS.ver >= g.rows.length) RS.ver = -1;
+  const r = RS.ver >= 0 ? g.rows[RS.ver] : null, o = r || g, multi = !r && g.rows.length > 1;
+  const p = ratio(o.actual, o.hedef), left = Math.max(0, o.hedef - o.actual);
+  const ys = [...g.years].sort((a, b) => a - b);
+  const yr = r ? (r.year == null ? '—' : r.year) : !ys.length ? '—' : ys.length > 1 ? ys[0] + '–' + ys[ys.length - 1] : ys[0];
+  const st = !o.hedef ? ['', 'Hədəf yoxdur'] : o.actual >= o.hedef ? ['ok', 'Hədəfdə'] : ['bad', 'Hədəfdən geri'];
+  const vers = g.rows.length > 1
+    ? `<div class="rsx-vers" role="group" aria-label="Versiya">` + [[-1, 'Bütün versiyalar']].concat(g.rows.map((x, i) => [i, x.version || '(versiya adı yoxdur)']))
+      .map(([i, n]) => `<button type="button" data-ver="${i}" aria-pressed="${i === RS.ver}">${esc(n)}</button>`).join('') + '</div>'
+    : (g.rows[0].version ? `<div class="rsx-v1">${esc(g.rows[0].version)}</div>` : '');
+  const cell = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
+  const line = (l, v) => `<div><dt>${l}</dt><dd>${v}</dd></div>`;
+  el.innerHTML = `<div class="rsx-d1"><div class="rsx-eb">${esc(g.brand)}</div><h3 class="rsx-mn">${esc(g.model)}</h3>`
+    + `<div class="rsx-tags"><span>${yr}</span><span>${g.rows.length} versiya</span><span class="st ${st[0]}">${st[1]}</span></div>${vers}`
+    + `<div class="rsx-ex"><div class="rsx-exh"><span>Hədəf icrası</span><b>${ratioTxt(p)}</b></div>${rsBar(p)}`
+    + `<p>${o.hedef ? `${fmt(o.actual)} satılıb, hədəf ${fmt(o.hedef)} — ${left ? fmt(left) + ' qalıb' : 'hədəf tamamlanıb'}` : `${fmt(o.actual)} satılıb, hədəf təyin olunmayıb`}</p></div></div>`
+    + `<div class="rsx-d2"><h4>Stok və satış</h4><div class="rsx-cells">`
+    + cell('Stok', fmt(o.stok)) + cell('Real stok', fmt(o.real)) + cell('Beh', fmt(o.beh))
+    + cell('Hədəf', fmt(o.hedef)) + cell('Satış', fmt(o.actual)) + cell('Qalan', o.hedef ? fmt(left) : '—') + '</div></div>'
+    + `<div class="rsx-d3"><h4>Qiymət və ödəniş</h4><dl>`
+    + line('Nağd qiymət', money(o.price)) + line('İlkin faiz', r ? (r.faiz == null ? '—' : r.faiz + '%') : pctTxt(g.faiz))
+    + line('İlkin ödəniş', money(o.ilkin)) + line('Müddət', esc(r ? r.muddet || '—' : [...g.muddet].join(' / ') || '—'))
+    + line('Aylıq ödəniş', money(o.ayliq)) + '</dl>'
+    + (multi ? '<p class="rsx-fn">Bir neçə versiya olduqda qiymət və ödənişlər ən aşağı göstəricidir. <span class="bad">Qırmızı fakt</span> — hədəfdən geri.</p>' : '<p class="rsx-fn"><span class="bad">Qırmızı fakt</span> — hədəfdən geri.</p>')
+    + (r && r.qeyd ? `<div class="note">${esc(r.qeyd)}</div>` : '') + '</div>';
+}
+function rsSelect(key) {
+  if (RS.sel === key) return;
+  RS.sel = key; RS.ver = -1;
+  document.querySelectorAll('#rsGrid tr[data-g]').forEach(tr => { const on = tr.dataset.g === key; tr.classList.toggle('on', on); tr.setAttribute('aria-selected', on); });
+  renderRsDet();
 }
 function buildRsFilters() {
   const tabs = (el, items, cur, on) => {
     $(el).innerHTML = items.map(([v, t]) => `<button type="button" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(t)}</button>`).join('');
     $(el).onclick = e => { const b = e.target.closest('[data-v]'); if (b) { on(b.dataset.v); } };
   };
-  const brands = [...new Set(RS.rows.map(r => r.brand))];
-  tabs('rsBrands', [['', 'Bütün brendlər']].concat(brands.map(b => [b, b])), RS.brand, v => { RS.brand = v; RS.open.clear(); RS.sel = ''; syncRs(); });
+  $('fw-rsDate').innerHTML = `<button type="button" class="fbtn" id="fb-rsDate" aria-haspopup="dialog" aria-expanded="false">${CAL}<span class="k"></span><span class="v"></span>${CHEV}</button>`;
+  $('fb-rsDate').onclick = openRsDatePop;
   const years = [...new Set(RS.rows.map(r => r.year).filter(y => y != null))].sort((a, b) => b - a);
   tabs('rsYears', [['', 'Bütün illər']].concat(years.map(y => [String(y), String(y)])), RS.year, v => { RS.year = v; syncRs(); });
   tabs('rsOnly', RS_ONLY, RS.only, v => { RS.only = v; syncRs(); });
   tabs('rsSort', RS_SORT, RS.sort, v => { RS.sort = v; syncRs(); });
   $('rsSearch').oninput = () => { RS.q = norm($('rsSearch').value); renderRS(); };
-  $('rsReset').onclick = () => { RS.brand = ''; RS.year = ''; RS.only = 'all'; RS.sort = 'pct'; RS.q = ''; $('rsSearch').value = ''; RS.open.clear(); RS.sel = ''; syncRs(); };
-  const tbl = $('rsTable');
-  const hit = e => {
-    const v = e.target.closest('tr.v');
-    if (v) { RS.sel = RS.sel === v.dataset.v ? '' : v.dataset.v; return renderRS(); }
-    const g = e.target.closest('tr.g');
-    if (g) { const k = g.dataset.g; RS.open.has(k) ? RS.open.delete(k) : RS.open.add(k); if (!RS.open.has(k) && RS.sel.startsWith(k + '#')) RS.sel = ''; renderRS(); }
-  };
-  tbl.addEventListener('click', hit);
-  tbl.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr.g,tr.v')) { e.preventDefault(); hit(e); } });
+  $('rsReset').onclick = () => { rsLastMonth(); RS.year = ''; RS.only = 'all'; RS.sort = 'pct'; RS.q = ''; $('rsSearch').value = ''; RS.sel = ''; RS.ver = -1; syncRs(); };
+  const grid = $('rsGrid');
+  grid.onclick = e => { const tr = e.target.closest('tr[data-g]'); if (tr) rsSelect(tr.dataset.g); };
+  grid.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-g]')) { e.preventDefault(); rsSelect(e.target.dataset.g); } };
+  $('rsDet').onclick = e => { const b = e.target.closest('[data-ver]'); if (b) { RS.ver = +b.dataset.ver; renderRsDet(); } };
 }
+function rsLastMonth() { RS.from = RS.to = RS.periods.length - 1; RS.preset = 'l1'; }
 function syncRs() {
-  [['rsBrands', RS.brand], ['rsYears', RS.year], ['rsOnly', RS.only], ['rsSort', RS.sort]].forEach(([el, cur]) =>
+  [['rsYears', RS.year], ['rsOnly', RS.only], ['rsSort', RS.sort]].forEach(([el, cur]) =>
     document.querySelectorAll('#' + el + ' [data-v]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === cur)));
   renderRS();
 }
+const RS_HIDDEN = ['skoda'];                            // stok lövhəsində göstərilməyən brendlər
 function setRealStock(rows, live) {
+  if (rows) rows = rows.filter(r => !RS_HIDDEN.includes(norm(r.brand)));
   if (!rows || !rows.length) { $('rs').hidden = true; return; }
   $('rs').hidden = false;
   RS.rows = rows; RS.live = !!live; RS.at = live ? Date.now() : 0;
   RS.border = [...new Set(rows.map(r => r.brand))];     // brendlərin Sheet-dəki ardıcıllığı
+  rows.forEach(r => { if (r.period == null) r.period = ''; });   // köhnə paketlərdə sahə yoxdur
+  const prev = RS.periods.length ? [RS.periods[RS.from], RS.periods[RS.to]] : null;
+  RS.periods = [...new Set(rows.map(r => r.period).filter(Boolean))].sort();
+  const a = prev ? RS.periods.indexOf(prev[0]) : -1, b = prev ? RS.periods.indexOf(prev[1]) : -1;
+  if (RS.preset === 'custom' && a >= 0 && b >= 0) { RS.from = a; RS.to = b; }        // yenilənmədə xüsusi aralıq saxlanılır
+  else if (RS.periods.length) { const r = rsPresetRange(RS.preset) || rsPresetRange('l1'); RS.from = r[0]; RS.to = r[1]; }
   const keys = new Set(rows.map(r => r.brand + '|' + r.model));
-  [...RS.open].forEach(k => { if (!keys.has(k)) RS.open.delete(k); });
-  if (RS.sel && !keys.has(RS.sel.split('#')[0])) RS.sel = '';
+  if (RS.sel && !keys.has(RS.sel)) { RS.sel = ''; RS.ver = -1; }
   buildRsFilters(); syncRs();
 }
 
