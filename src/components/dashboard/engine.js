@@ -14,7 +14,7 @@ const CFG = {
               'Changan.az', 'Skoda.az', 'Avatr.az', 'İnternet', 'Youtube', 'Google', 'Tv'],
   // Bizim brendlər — 8 (istifadəçi qərarı 29.09.2026: köhnə paneldəki "(7)" yazısı səhv idi)
   ourBrands: ['Changan', 'Lynk & Co', 'Mercedes', 'Skoda', 'Xpeng', 'Avatr', 'Leap', 'Deepal'],
-  autoRefreshMinutes: 1,                   // səhifə açıq qalanda serverdən yeni datanı bu intervalla yoxlayır (dəyişməyibsə 304 — ucuzdur)
+  autoRefreshSeconds: 15,                  // səhifə açıq qalanda serverdən yeni datanı bu intervalla yoxlayır (dəyişməyibsə 304 — ucuzdur)
   headerBrands: [['Mercedes-Benz', 'Mercedes'], ['Changan', 'Changan'], ['Xpeng', 'Xpeng'], ['Avatr', 'Avatr'],
                  ['Skoda', 'Skoda'], ['Lynk & Co', 'Lynk & Co']],
 };
@@ -1264,7 +1264,7 @@ async function refreshData(quiet) {
     if (p) { await applyPayload(p, false); if (quiet && !DATA.busy) showNotice('ok', 'Yeni data yükləndi.', 5000); }
     refreshMeta();
   }
-  catch (e) { if (!quiet) showNotice('error', e.message); }
+  catch (e) { if (!quiet) showNotice('error', e.message); else console.warn('Avtomatik yeniləmə alınmadı:', e); }
   finally { DATA.loading = false; }
 }
 
@@ -1289,7 +1289,7 @@ function bindRefresh() {
   const b = $('btnRefresh');
   if (opts.isAdmin) b.onclick = manualRefresh; else b.remove();
   const tick = () => { if (!DATA.busy && document.visibilityState === 'visible') refreshData(true); };
-  const t = setInterval(tick, CFG.autoRefreshMinutes * 60000);   // səhifə açıq qalanda serverdəki yeni datanı özü götürür
+  const t = setInterval(tick, CFG.autoRefreshSeconds * 1000);   // səhifə açıq qalanda serverdəki yeni datanı özü götürür
   cleanups.push(() => clearInterval(t));
   docOn('visibilitychange', tick);                       // tab-a qayıdanda dərhal yoxla
   addEventListener('focus', tick, { signal: ac.signal });

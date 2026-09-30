@@ -13,7 +13,7 @@ Tam layihə xülasəsi (məqsəd, qərarlar, data qaydaları, funksional spesifi
 
 ## Data körpüsü (2-ci mərhələ)
 - Şirkətin Google təşkilatında servis hesabı açarı yaratmaq qadağandır (`iam.disableServiceAccountKeyCreation`) — server Sheet-i özü oxumur.
-- Sheet-in öz Apps Script-i ([apps-script/Code.gs](apps-script/Code.gs)) hər 15 dəq Main Data + Real Stock-u `getDisplayValues()` ilə oxuyur → `/api/ingest`-ə göndərir (`Authorization: Bearer SYNC_SECRET`). Əvvəl kiçik `check` (hash) sorğusu; dəyişiklik varsa data 60k sətirlik gzip hissələrlə (Vercel 4.5 MB limiti).
+- Sheet-in öz Apps Script-i ([apps-script/Code.gs](apps-script/Code.gs)) Sheet dəyişən kimi (onChange + dəqiqəlik taymer, 20 san gözləmə; dəyişiklik olmasa 15 dəq-dən bir) Main Data + Real Stock-u `getDisplayValues()` ilə oxuyur → `/api/ingest`-ə göndərir (`Authorization: Bearer SYNC_SECRET`). Əvvəl kiçik `check` (hash) sorğusu; dəyişiklik varsa data 60k sətirlik gzip hissələrlə (Vercel 4.5 MB limiti).
 - Paneldə admin "Yenilə" → server action Apps Script web app-ını (`APPS_SCRIPT_URL`) çağırır.
 - ETL: [src/lib/etl/](src/lib/etl/) (template + build.py qaydaları), sync: [src/lib/sync.ts](src/lib/sync.ts). Lokal sync CSV-dən: `npm run sync -- --main X.csv --stock Y.csv` (defolt `.data/import/`), sonra `npm run verify` (handoff §6).
 - Lokal gizli fayllar `.secrets/`-dədir (gitignore): `sync-secret.txt` = Vercel-dəki `SYNC_SECRET`.

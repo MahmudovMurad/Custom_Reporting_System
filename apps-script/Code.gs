@@ -3,7 +3,9 @@
  * Bu kod "data baza" Sheet-inin öz Apps Script-inə yapışdırılır (Extensions → Apps Script).
  * Main Data və Real Stock-u oxuyur, dəyişiklik varsa serverə göndərir. Dəyişiklik yoxdursa yalnız kiçik yoxlama sorğusu gedir.
  *
- * Quraşdırma: Sheet-də "SR Reporting → Quraşdır" (açarı soruşur, 15 dəqiqəlik taymeri yaradır, ilk göndərişi edir).
+ * Quraşdırma: Sheet-də "SR Reporting → Quraşdır" (açarı soruşur, triggerləri yaradır, ilk göndərişi edir).
+ * Dəyişiklik olan kimi: onChange triggeri "dəyişib" qeyd edir, hər dəqiqəlik taymer son dəyişiklikdən 20 san sonra göndərir
+ * (ardıcıl redaktələr bir göndərişə yığılır). Dəyişiklik olmasa da 15 dəqiqədən bir yoxlama göndərişi gedir.
  * Açar (SYNC_SECRET) quraşdıran istifadəçinin şəxsi xassələrində saxlanılır — digər redaktorlar onu görmür.
  */
 var SR = {
@@ -11,12 +13,14 @@ var SR = {
   mainGid: 0,              // Main Data
   stockGid: 1048230805,    // Real Stock
   partRows: 60000,         // bir sorğuda göndərilən sətir sayı (Vercel sorğu limiti 4.5 MB — gzip-dən sonra ~1 MB)
+  quietMs: 20000,          // son redaktədən bu qədər sonra göndərilir (redaktələr bitsin)
+  fullMs: 15 * 60000,      // dəyişiklik qeyd olunmasa da bu intervalla yoxlanılır (formula/import dəyişiklikləri üçün)
 };
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('SR Reporting')
     .addItem('İndi göndər', 'menuSend')
-    .addItem('Quraşdır (açar + 15 dəq taymer)', 'setup')
+    .addItem('Quraşdır (açar + avtomatik göndəriş)', 'setup')
     .addItem('Taymeri dayandır', 'stopTimer')
     .addToUi();
 }
@@ -31,9 +35,15 @@ function setup() {
   props.setProperty('SYNC_SECRET', secret);
   props.setProperty('SHEET_ID', SpreadsheetApp.getActiveSpreadsheet().getId());
   stopTimer_();
-  ScriptApp.newTrigger('timerSend').timeBased().everyMinutes(15).create();
+  ScriptApp.newTrigger('timerSend').timeBased().everyMinutes(1).create();
+  ScriptApp.newTrigger('onSheetChange').forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet()).onChange().create();
   var res = send_('menu', null);
-  ui.alert('Quraşdırıldı — hər 15 dəqiqədən bir avtomatik göndəriləcək.\n\nİlk göndəriş: ' + res.message);
+  ui.alert('Quraşdırıldı — Sheet dəyişən kimi (təxminən 1 dəqiqə ərzində) avtomatik göndəriləcək.\n\nİlk göndəriş: ' + res.message);
+}
+
+/** Installable onChange: yalnız "dəyişib" qeyd edir (göndəriş taymerdədir — ardıcıl redaktələr bir dəfə göndərilsin). */
+function onSheetChange() {
+  PropertiesService.getUserProperties().setProperty('DIRTY_AT', String(Date.now()));
 }
 
 function stopTimer() {
@@ -43,7 +53,8 @@ function stopTimer() {
 
 function stopTimer_() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'timerSend') ScriptApp.deleteTrigger(t);
+    var h = t.getHandlerFunction();
+    if (h === 'timerSend' || h === 'onSheetChange') ScriptApp.deleteTrigger(t);
   });
 }
 
@@ -52,7 +63,12 @@ function menuSend() {
   SpreadsheetApp.getUi().alert(res.message);
 }
 
+/** Hər dəqiqə: son redaktədən 20 san keçibsə və ya 15 dəqiqədir göndəriş olmayıbsa göndərir; əks halda dərhal çıxır. */
 function timerSend() {
+  var props = PropertiesService.getUserProperties(), now = Date.now();
+  var dirty = +(props.getProperty('DIRTY_AT') || 0), last = +(props.getProperty('LAST_SEND') || 0);
+  var due = (dirty && now - dirty >= SR.quietMs) || now - last >= SR.fullMs;
+  if (!due) return;
   var res = send_('timer', null);
   if (!res.ok) console.error(res.message);
 }
@@ -73,6 +89,9 @@ function send_(trigger, requestedBy) {
     var props = PropertiesService.getUserProperties();
     var secret = props.getProperty('SYNC_SECRET');
     if (!secret) return { ok: false, message: 'Quraşdırılmayıb: "SR Reporting → Quraşdır" menyusundan açarı daxil edin.' };
+    // göndərişdən sonra gələn redaktələr itməsin: yalnız oxumağa başladığımız ana qədərki "dəyişib" qeydi silinir
+    var dirtyAt = props.getProperty('DIRTY_AT');
+    props.setProperty('LAST_SEND', String(Date.now()));
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(props.getProperty('SHEET_ID'));
     var main = sheet_(ss, SR.mainGid, 'Main Data');
     var stock = sheet_(ss, SR.stockGid, 'Real Stock');
@@ -81,6 +100,7 @@ function send_(trigger, requestedBy) {
     // ekranda göründüyü kimi (tarix "2-Jan-26" və s.) — köhnə paneldəki CSV exportu ilə eyni
     var mainV = main.getDataRange().getDisplayValues();
     var stockJson = stock ? JSON.stringify(stock.getDataRange().getDisplayValues()) : 'null';
+    if (props.getProperty('DIRTY_AT') === dirtyAt) props.deleteProperty('DIRTY_AT');   // oxunarkən yeni redaktə olubsa qeyd qalır
     var parts = [];
     for (var i = 0; i < mainV.length; i += SR.partRows) parts.push(JSON.stringify(mainV.slice(i, i + SR.partRows)));
     mainV = null;
