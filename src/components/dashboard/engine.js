@@ -164,7 +164,7 @@ function buildFilters() {
   $('fb-cbrand').onclick = () => openDimPop('brand', 'fw-cbrand');
   $('resetAll').onclick = () => { DIMS.forEach(d => S.sel[d.key].clear()); setPreset('all'); };
   $('resetMain').onclick = $('resetAll').onclick;
-  $('resetChart').onclick = () => { S.metric = 'all'; S.gran = 'day'; S.cmp = false; S.clickPrev = null; S.showTable = false; $('tblToggle').setAttribute('aria-pressed', false); $('ctable').hidden = true; syncChartControls(); setPreset('all'); };
+  $('resetChart').onclick = () => { S.metric = 'all'; S.sel.nov.clear(); S.gran = 'day'; S.cmp = false; S.clickPrev = null; S.showTable = false; $('tblToggle').setAttribute('aria-pressed', false); $('ctable').hidden = true; syncChartControls(); setPreset('all'); };
   $('brands').onclick = e => { const b = e.target.closest('[data-b]'); if (b) toggle('brand', +b.dataset.b); };
   $('chips').onclick = e => {
     const c = e.target.closest('.chip'); if (!c) return;
@@ -386,7 +386,12 @@ function buildChartControls() {
     document.querySelectorAll('#segGran [data-g]').forEach(b => { b.setAttribute('aria-pressed', b.dataset.g === S.gran); b.disabled = S.cmp; });
     $('cmpToggle').setAttribute('aria-pressed', S.cmp);
   };
-  $('segMetric').onclick = e => { const b = e.target.closest('[data-m]'); if (b) { S.metric = b.dataset.m; syncChartControls(); renderChart(); } };
+  $('segMetric').onclick = e => {                         // qrafik metrikası Type (Növ) kartı ilə sinxron: düymə həmin növü seçir
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    S.metric = b.dataset.m; S.sel.nov.clear();
+    if (S.metric !== 'all' && NOV[S.metric] >= 0) S.sel.nov.add(NOV[S.metric]);
+    syncChartControls(); update();
+  };
   $('segGran').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { S.gran = b.dataset.g; syncChartControls(); renderChart(); } };
   $('cmpToggle').onclick = () => {
     S.cmp = !S.cmp;
@@ -628,7 +633,14 @@ function bindPlot() {
 }
 
 /* ====== Yeniləmə ====== */
+function syncMetricFromNov() {                      // Type kartında seçilən növ qrafikin metrikasını təyin edir
+  if (S.cmp) return;
+  const v = [...S.sel.nov][0];
+  const m = v == null ? 'all' : (Object.keys(NOV).find(k => NOV[k] === v) || 'all');
+  if (m !== S.metric) { S.metric = m; syncChartControls(); }
+}
 function update() {
+  syncMetricFromNov();
   R = compute();
   renderFilters(); renderKpis();
   DIMS.forEach((d, i) => renderTable(i));
