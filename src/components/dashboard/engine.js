@@ -48,11 +48,13 @@ const dShort = (i, yr = true) => { const d = dateOf(i); return `${d.getUTCDate()
 const label = (key, v) => { const s = DIMV[key][v]; return s === '' ? '(boş)' : (key === 'nov' && s === 'Sales' ? 'Sales' : s); };
 const mnorm = s => norm(s).replace(/\s+/g, ' ');       // "SOSİAL ŞƏBƏKƏ" = "Sosial Şəbəkə", "TİKTOK" = "Tiktok"
 const mktSet = new Set(CFG.marketing.map(mnorm));
+const NOVN = { mur: ['müraciət', 'muraciet'], tra: ['trafik', 'traffic'], sal: ['sales', 'satış', 'satis'] };
+const novMetric = v => Object.keys(NOVN).find(k => NOVN[k].includes(norm(DIMV.nov[v]))) || 'all';
 function applyData(ds) {
   META = ds.meta; DIMV = ds.dims; ND = ds.ndays; L = ND - 1; D = ds.cols; NROWS = ds.cols.day.length;
   const [y, m, d] = ds.start.split('-').map(Number); T0 = Date.UTC(y, m - 1, d);
   const find = names => DIMV.nov.findIndex(v => names.includes(norm(v)));
-  NOV = { mur: find(['müraciət', 'muraciet']), tra: find(['trafik', 'traffic']), sal: find(['sales', 'satış', 'satis']) };
+  NOV = { mur: find(NOVN.mur), tra: find(NOVN.tra), sal: find(NOVN.sal) };
   MKT = { satis: new Uint8Array(DIMV.satis.map(v => mktSet.has(mnorm(v)) ? 1 : 0)),
           haradan: new Uint8Array(DIMV.haradan.map(v => mktSet.has(mnorm(v)) ? 1 : 0)) };
 }
@@ -408,17 +410,14 @@ function buildChartControls() {
 }
 
 function buckets() {
-  const { from, to } = S, ser = R.series, out = [];
+  const { from, to } = S, ser = R.series, out = [], nm = ser.map((_, n) => novMetric(n));
   let cur = null;
   const key = i => { if (S.gran === 'day') return i; const d = dateOf(i); return S.gran === 'week' ? i - ((d.getUTCDay() + 6) % 7) : d.getUTCFullYear() * 12 + d.getUTCMonth(); };
   for (let i = from; i <= to; i++) {
     const k = key(i);
     if (!cur || cur.k !== k) { cur = { k, s: i, e: i, mur: 0, tra: 0, sal: 0, all: 0 }; out.push(cur); }
     cur.e = i; const j = i - from;
-    for (let n = 0; n < ser.length; n++) cur.all += ser[n][j];
-    if (NOV.mur >= 0) cur.mur += ser[NOV.mur][j];
-    if (NOV.tra >= 0) cur.tra += ser[NOV.tra][j];
-    if (NOV.sal >= 0) cur.sal += ser[NOV.sal][j];
+    for (let n = 0; n < ser.length; n++) { const v = ser[n][j]; cur.all += v; if (nm[n] !== 'all') cur[nm[n]] += v; }
   }
   return out;
 }
@@ -633,11 +632,14 @@ function bindPlot() {
 }
 
 /* ====== Yeniləmə ====== */
-function syncMetricFromNov() {                      // Type kartında seçilən növ qrafikin metrikasını təyin edir
-  if (S.cmp) return;
-  const v = [...S.sel.nov][0];
-  const m = v == null ? 'all' : (Object.keys(NOV).find(k => NOV[k] === v) || 'all');
-  if (m !== S.metric) { S.metric = m; syncChartControls(); }
+let lastNov;
+function syncMetricFromNov() {                      // Type kartında seçilən növ qrafikin metrikasını təyin edir (bazar müqayisəsini də bağlayır)
+  const v = S.sel.nov.size ? [...S.sel.nov][0] : -1;
+  if (v === lastNov) return;
+  lastNov = v;
+  if (S.cmp && v >= 0) S.cmp = false;
+  if (!S.cmp) S.metric = v < 0 ? 'all' : novMetric(v);
+  syncChartControls();
 }
 function update() {
   syncMetricFromNov();
