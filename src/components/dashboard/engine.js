@@ -654,7 +654,7 @@ function update() {
 // Dövr (Real Stock "Tarix" sütunu, YYYY-MM): from/to = RS.periods indeksləri. Aralıqda stok son aydan, hədəf/satış/beh ayların cəmi.
 const RS = { rows: [], periods: [], from: 0, to: -1, preset: 'l1', q: '', year: '', only: 'all', sort: 'pct', sel: '', gs: [], live: false, at: 0, border: [] };
 const RS_ONLY = [['all', 'Hamısı'], ['stock', 'Stokda var'], ['target', 'Hədəfi olan'], ['gap', 'Hədəfdən geri']];
-const RS_SORT = [['pct', 'Hədəf %'], ['real', 'Real Stok'], ['hedef', 'Hədəf'], ['actual', 'Satış'], ['price', 'Qiymət'], ['name', 'Ad']];
+const RS_SORT = [['pct', 'Hədəf %'], ['real', 'Real Stok'], ['hedef', 'Hədəf'], ['actual', 'Satış'], ['price', 'Qiymət']];
 const RS_SUM = ['stok', 'real', 'hedef', 'actual', 'beh'];
 const money = v => v == null ? '—' : fmt(v) + ' ₼';
 const ratio = (a, h) => h ? a / h : null;
@@ -672,7 +672,7 @@ function rsPeriodRows() {
     const k = [r.brand, r.model, r.version, r.year].join('|'), o = out.get(k);
     out.set(k, o ? { ...r, hedef: o.hedef + r.hedef, actual: o.actual + r.actual, beh: o.beh + r.beh, qeyd: r.qeyd || o.qeyd } : { ...r });
   }
-  return [...out.values()];
+  return [...out.values()].map(r => (r.period === hi ? r : { ...r, stok: 0, real: 0 }));   // son ayda olmayan versiyanın stoku yoxdur
 }
 /* --- dövr seçimi (Bazar payı bölməsinin seçicisi ilə eyni) --- */
 const RS_PRESETS = [['all', 'Bütün dövr'], ['l1', 'Son ay'], ['l3', 'Son 3 ay'], ['l6', 'Son 6 ay'], ['ytd', 'Bu il'], ['py', 'Keçən il']];
@@ -696,7 +696,7 @@ function rsRangeLabel() {
 }
 function rsSetRange(a, b, preset) {
   RS.from = Math.min(a, b); RS.to = Math.max(a, b);
-  RS.preset = preset || (RS.from === 0 && RS.to === RS.periods.length - 1 ? 'all' : 'custom');
+  RS.preset = preset || (['l1', 'l3', 'l6', 'ytd', 'py', 'all'].find(id => { const r = rsPresetRange(id); return r && r[0] === RS.from && r[1] === RS.to; }) || 'custom');
   syncRs();
 }
 let rsAnchor = -1;
@@ -835,10 +835,11 @@ function buildRsFilters() {
     $(el).innerHTML = items.map(([v, t]) => `<button type="button" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(t)}</button>`).join('');
     $(el).onclick = e => { const b = e.target.closest('[data-v]'); if (b) { on(b.dataset.v); } };
   };
-  $('fw-rsDate').innerHTML = `<button type="button" class="fbtn" id="fb-rsDate" aria-haspopup="dialog" aria-expanded="false">${CAL}<span class="k"></span><span class="v"></span>${CHEV}</button>`;
-  $('fb-rsDate').onclick = openRsDatePop;
-  const years = [...new Set(RS.rows.map(r => r.year).filter(y => y != null))].sort((a, b) => b - a);
-  tabs('rsYears', [['', 'Bütün illər']].concat(years.map(y => [String(y), String(y)])), RS.year, v => { RS.year = v; syncRs(); });
+  if (!$('fb-rsDate')) {                                 // yenilənmədə yenidən qurulmur — açıq dövr pəncərəsi bağlanmasın
+    $('fw-rsDate').innerHTML = `<button type="button" class="fbtn" id="fb-rsDate" aria-haspopup="dialog" aria-expanded="false">${CAL}<span class="k"></span><span class="v"></span>${CHEV}</button>`;
+    $('fb-rsDate').onclick = openRsDatePop;
+  }
+  $('rsYears').onclick = e => { const b = e.target.closest('[data-v]'); if (b && !b.disabled) { RS.year = b.dataset.v; syncRs(); } };
   tabs('rsOnly', RS_ONLY, RS.only, v => { RS.only = v; syncRs(); });
   tabs('rsSort', RS_SORT, RS.sort, v => { RS.sort = v; syncRs(); });
   $('rsSearch').oninput = () => { RS.q = norm($('rsSearch').value); renderRS(); };
@@ -848,8 +849,15 @@ function buildRsFilters() {
   grid.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-g]')) { e.preventDefault(); rsSelect(e.target.dataset.g); } };
 }
 function rsLastMonth() { RS.from = RS.to = RS.periods.length - 1; RS.preset = 'l1'; }
+function renderRsYears() {                            // istehsal illəri seçilmiş dövrün datasından; dövrdə olmayan il seçilibsə "Bütün illər"ə qayıdır
+  const ys = [...new Set(rsPeriodRows().map(r => r.year).filter(y => y != null).map(String))].sort((a, b) => b - a);
+  if (RS.year && !ys.includes(RS.year)) RS.year = '';
+  $('rsYears').innerHTML = [['', 'Bütün illər']].concat(ys.map(y => [y, y]))
+    .map(([v, t]) => `<button type="button" data-v="${esc(v)}" aria-pressed="${v === RS.year}">${esc(t)}</button>`).join('');
+}
 function syncRs() {
-  [['rsYears', RS.year], ['rsOnly', RS.only], ['rsSort', RS.sort]].forEach(([el, cur]) =>
+  renderRsYears();
+  [['rsOnly', RS.only], ['rsSort', RS.sort]].forEach(([el, cur]) =>
     document.querySelectorAll('#' + el + ' [data-v]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === cur)));
   renderRS();
 }
@@ -865,7 +873,10 @@ function setRealStock(rows, live) {
   RS.periods = [...new Set(rows.map(r => r.period).filter(Boolean))].sort();
   const a = prev ? RS.periods.indexOf(prev[0]) : -1, b = prev ? RS.periods.indexOf(prev[1]) : -1;
   if (RS.preset === 'custom' && a >= 0 && b >= 0) { RS.from = a; RS.to = b; }        // yenilənmədə xüsusi aralıq saxlanılır
-  else if (RS.periods.length) { const r = rsPresetRange(RS.preset) || rsPresetRange('l1'); RS.from = r[0]; RS.to = r[1]; }
+  else if (RS.periods.length) {
+    if (RS.preset === 'custom' || !rsPresetRange(RS.preset)) RS.preset = 'l1';
+    const r = rsPresetRange(RS.preset); RS.from = r[0]; RS.to = r[1];
+  }
   const keys = new Set(rows.map(r => r.brand + '|' + r.model));
   if (RS.sel && !keys.has(RS.sel)) RS.sel = '';
   buildRsFilters(); syncRs();
